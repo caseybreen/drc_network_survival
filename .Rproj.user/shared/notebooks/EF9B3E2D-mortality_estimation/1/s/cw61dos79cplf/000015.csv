@@ -1,0 +1,3 @@
+"0","  "
+"0","bind_rows(lists) %>% "
+"0","  summarize(quantiles = quantile(estimate, probs = c(0.025, 0.975)))"
