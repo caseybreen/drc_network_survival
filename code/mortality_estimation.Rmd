@@ -3,15 +3,28 @@ title: "R Notebook"
 output: html_notebook
 ---
 
+## Network Survival Estimator - Known Population Method
 
-## Basic Scale-up Estimator
+$$ 
+\frac{Y_{F, D}}{Y_{F, A}} \times \frac{N_{A}}{N_F}
+$$ 
+Where
+
+- $Y_{F, D}$ is the total number of connections to people who have died 
+
+- $Y_{F, A}$ is the total number of connections to people in groups of known size 
+
+- $\frac{N_{A}}{N_F}$ is the proportion of the total population that the "groups of known sizes" represents 
+
+
+## Network Survival Estimator 
 
 To estimate under-5 mortality rate from the aggregate relational data, we can
 apply the basic network scale-up estimator:
 
 $$
 \tag{2}
-\widehat{M}_{\text{crude}} = \frac{\sum_{i \in s_F} w_i \enspace y_{i, H}}{\sum_{i \in s_F} w_i \enspace \hat{d}_{i}}
+\widehat{M}_{\text{crude}} = \frac{\sum_{i \in s_F} w_i \enspace Y_{i, H}}{\sum_{i \in s_F} w_i \enspace \hat{d}_{i}}
 $$
 
 where
