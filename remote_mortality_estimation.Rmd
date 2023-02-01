@@ -1,0 +1,136 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r, echo = F}
+## library packages 
+library(tidyverse)
+library(data.table)
+```
+
+
+```{r, echo = F}
+formative_survey <- readxl::read_excel("data/Dataset mortality.xlsm", sheet = 2)
+
+formative_survey <- formative_survey %>% 
+  mutate(network1 = `11.1) Combien de personnes connaissez-vous à qui vous avez parlé en personne, au téléphone, ou par message ou messagerie instantanée au moins une fois par semaine (en moyenne) durant les 3 derniers mois ? Veuillez donner votre meilleure estimation`) %>% 
+  mutate(network2 = `10.11) Combien de personnes connaissez-vous à qui vous avez parlé en personne, au téléphone, ou par message ou messagerie instantanée au moins une fois par semaine (en moyenne) durant les 3 derniers mois ? Veuillez donner votre meilleure estimation.`) %>% 
+      mutate(deaths_12month = `12.2) Si oui, combien de personnes à qui vous avez souvent parlé sont décédées au cours des douze derniers mois ?`) %>% 
+      mutate(deaths_6month = `12.3) Combien de personnes à qui vous avez souvent parlé sont décédées au cours des six derniers mois ?`) %>% 
+  mutate(deaths_3month = `12.4) Combien de personnes à qui vous avez  souvent parlé sont décédées au cours des trois derniers mois ?`) %>% 
+  mutate(deaths_1month = `12.5) Combien de personnes à qui vous avez  souvent parlé son décédées au cours du dernier mois ?`) %>% 
+  mutate(network_talk_weekly = coalesce(network1, network2)) %>% 
+  mutate(report_deaths = `12.1) Parmi les personnes avec qui vous parlez, connaissez-vous quelqu'un qui est décédé au cours des douze derniers mois ?`)
+
+formative_survey <- formative_survey %>% 
+  filter(!is.na(report_deaths)) %>% 
+  mutate(deaths_1month = case_when(
+    report_deaths == "Oui" ~ deaths_1month,
+    TRUE ~ 0),
+    deaths_3month = case_when(
+    report_deaths == "Oui" ~ deaths_3month,
+    TRUE ~ 0),
+    deaths_6month = case_when(
+    report_deaths == "Oui" ~ deaths_6month,
+    TRUE ~ 0),
+    deaths_12month = case_when(
+    report_deaths == "Oui" ~ deaths_12month,
+    TRUE ~ 0))
+
+```
+
+
+```{r}
+formative_survey_summary <- formative_survey %>% 
+  summarize(`1`= mean(deaths_1month, na.rm = T), `1_se` =  sd(deaths_1month, na.rm = T) / sqrt(n()), 
+            `3`= mean(deaths_3month, na.rm = T), `3_se` =  sd(deaths_3month, na.rm = T) / sqrt(n()),
+            `6`= mean(deaths_6month, na.rm = T), `6_se` =  sd(deaths_6month, na.rm = T) / sqrt(n()), 
+            `12` = mean(deaths_12month, na.rm = T), `12_se` =  sd(deaths_12month, na.rm = T) / sqrt(n())) %>% 
+  mutate(id = 1) %>% 
+  pivot_longer(-id)
+
+formative_survey_summary <- formative_survey_summary %>% 
+  pivot_wider(names_from = name, values_from = value) %>% 
+  pivot_longer(-id) %>% 
+  mutate(se = case_when(value < 0.5 ~ "standard_error",
+                        TRUE ~ "mean")) %>%
+  mutate(month = parse_number(name)) %>% 
+  select(-name) %>% 
+  pivot_wider(names_from = se, values_from = value) %>% 
+  mutate(mean = mean / month,
+         standard_error = standard_error / month) 
+
+formative_survey_summary %>% 
+  ggplot(aes(x = as.factor(month), y = mean, ymax = mean - 1.96 * standard_error, ymin = mean +  1.96 * standard_error)) + 
+  geom_col(color = "black", fill = "grey") + 
+  geom_errorbar(width = 0.2) + 
+  geom_text(aes(x = as.factor(month), y = mean + 0.2, label = round(mean, 2))) + 
+  cowplot::theme_cowplot() + 
+  labs(x = "Observation Window Length (Months)",
+       y = "Average Deaths Reported per Month")
+
+```
+
+
+```{r, echo = F}
+## deaths 3 month 
+deaths_plot <- formative_survey %>% 
+  ggplot(aes(x = deaths_3month)) +
+  geom_histogram(binwidth = 1, color = "black", fill = "grey") + 
+  cowplot::theme_cowplot() + 
+  labs(x = "Reported Deaths (3 Mo.)")
+
+## talk weekly last 3 month 
+denominator_plot <- formative_survey %>% 
+  ggplot(aes(x = network_talk_weekly)) +
+  geom_histogram(binwidth = 50, color = "black", fill = "grey") + 
+  cowplot::theme_cowplot() + 
+  labs(x = "Network Size (Talk weekly, 3 Mo.)")
+
+## combined plot 
+cowplot::plot_grid(deaths_plot, denominator_plot)
+```
+
+```{r, echo = F}
+formative_survey %>% 
+  summarize(num = mean(deaths_3month, na.rm = T),
+            denom = mean(network_talk_weekly, na.rm = T)) 
+
+1.333333/49/90 * 10000
+```
+
+
+```{r}
+formative_survey %>%
+  ggplot(aes(x = deaths_3month, y = network_talk_weekly)) + 
+  geom_point(alpha = 0.5) + 
+  cowplot::theme_cowplot() + 
+  geom_smooth()
+  
+cor(formative_survey$deaths_3month, 
+     formative_survey$network_talk_weekly)
+```
+
+```{r}
+resample <- list()
+
+for (i in 1:1000) {
+resample[[i]] <- formative_survey %>% 
+  sample_n(replace = T, size = 150) %>% 
+  summarize(num = mean(deaths_3month, na.rm = T),
+            denom = mean(network_talk_weekly, na.rm = T)) %>% 
+  mutate(estimate = num / denom) 
+}
+
+bind_rows(resample) %>% 
+  mutate(estimate_emergency = estimate / 90 * 10000) %>% 
+  summarize(lower = quantile(estimate_emergency, 0.025),
+            upper = quantile(estimate_emergency, 0.975))
+
+```
+
+
+
+
