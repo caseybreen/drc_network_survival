@@ -8,7 +8,7 @@ editor: visual
 
 We are interested in calculating the sample required to estimate a a minimal detectable effect of 0.4 between the household survey and the network survival method. Note: we making a series of assumptions for our power size calculations.
 
-## Analytic Sample size calculations 
+## Analytic Sample size calculations
 
 $$
  e^2_0 = (1.96^2)V(\hat{p}) = (1.96^2) \frac{p}{n\bar{d}} \\
@@ -96,11 +96,11 @@ intervals_sample_size_long %>%
   ggsci::scale_color_lancet() + 
   theme(legend.position = "bottom") + 
   labs(x = "Sample Size",
-       y = "Coefficient of Variation",
-       title = "Variance Estimation")
+       y = "Margin of Error",
+       title = "Sample Sample Calculations")
 ```
 
-## Minimum detectable effect size 
+## Minimum detectable effect size
 
 The minimum detectable effect size is the largest effect size we are able to detect.
 
@@ -115,33 +115,38 @@ For the household survey, we will calculate estimated level of precision at hous
 households = 1074
 members_per_household = 5.5
 N = households * members_per_household
-p = 0.87 ## deaths per day per 10000 
-design_effect = 1.5 
+p = 0.87/100 ## convert to a rate per 100 
+design_effect = 1.5
 
 ## calculate variante 
-variance = ((1 - p/100)*(p/100))/N * design_effect
+variance = ((1 - p)*(p))/N * design_effect
 sd = sqrt(variance)
 
 ## estimate 95% CI 
-c(p -1.96*sd, p + 1.96*sd)*100
+c(p -1.96*sd, p + 1.96*sd) * 100
 ```
 
 ```{r}
 sd_hh <- 0.001479873 * 100
-sd <- 0.1811186
+sd <- 0.1040816
+```
 
-df <- tibble(dist1 = rnorm(mean = 3.27, sd = sd_hh, n = 100000),
-             dist2 = rnorm(mean = 3.27 - 0.4, sd = sd, n = 100000))
+```{df <- tibble(dist1 = rnorm(mean = 0.87, sd = sd_hh, n = 100000),}
+             dist2 = rnorm(mean = 0.87 + 0.4, sd = sd, n = 100000))
 
 df %>% mutate(id = 1) %>% pivot_longer(-id) %>% 
   ggplot(aes(x = value, fill = name)) + 
   geom_density(alpha = 0.2) + 
   cowplot::theme_cowplot()
+
+
+df %>% 
+  summarize(quantile(dist1, 0.975))
+
+df %>% summarize(mean(dist2 < 1.158483 ))
 ```
 
 1.  Look at Under-5
 2.  Gender differences in size of network
 3.  Power size calculations
 4.  Look through materials
-5.  Submit IRB tonight
-6.  

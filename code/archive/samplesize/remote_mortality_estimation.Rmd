@@ -1,6 +1,6 @@
 ---
 title: "R Notebook"
-output: html_notebook
+author: Casey Breen
 ---
 
 
@@ -8,12 +8,11 @@ output: html_notebook
 ## library packages 
 library(tidyverse)
 library(data.table)
-```
 
-
-```{r, echo = F}
+## read in survey 
 formative_survey <- readxl::read_excel("data/Dataset mortality.xlsm", sheet = 2)
 
+## rename variables 
 formative_survey <- formative_survey %>% 
   mutate(network1 = `11.1) Combien de personnes connaissez-vous à qui vous avez parlé en personne, au téléphone, ou par message ou messagerie instantanée au moins une fois par semaine (en moyenne) durant les 3 derniers mois ? Veuillez donner votre meilleure estimation`) %>% 
   mutate(network2 = `10.11) Combien de personnes connaissez-vous à qui vous avez parlé en personne, au téléphone, ou par message ou messagerie instantanée au moins une fois par semaine (en moyenne) durant les 3 derniers mois ? Veuillez donner votre meilleure estimation.`) %>% 
@@ -22,8 +21,19 @@ formative_survey <- formative_survey %>%
   mutate(deaths_3month = `12.4) Combien de personnes à qui vous avez  souvent parlé sont décédées au cours des trois derniers mois ?`) %>% 
   mutate(deaths_1month = `12.5) Combien de personnes à qui vous avez  souvent parlé son décédées au cours du dernier mois ?`) %>% 
   mutate(network_talk_weekly = coalesce(network1, network2)) %>% 
-  mutate(report_deaths = `12.1) Parmi les personnes avec qui vous parlez, connaissez-vous quelqu'un qui est décédé au cours des douze derniers mois ?`)
+  mutate(report_deaths = `12.1) Parmi les personnes avec qui vous parlez, connaissez-vous quelqu'un qui est décédé au cours des douze derniers mois ?`) %>% 
+  mutate(job = `0.1.q) Quel est la profession de l'IC interrogé?` ) %>% 
+  mutate(infants = `10.12) Parmi ces ${Q1_11} personnes, combien de petits enfants de moins de cinq ans ont-ils tous ?`,
+         infants2 = `11.2) Parmi ces ${Q2_1} personnes, combien de petits enfants de moins de cinq ans ont-ils tous ?`,
+         in_community1 = `10.13) Parmi ces ${Q1_11} personnes, combien d'entre elles vivent dans votre communauté ?`,
+         in_community2 = `11.3) Parmi ces ${Q2_1} personnes, combien d'entre elles vivent dans votre communauté ?`,
+         infants_in_community1 = `10.14) Parmi ces ${Q1_11_2} personnes dans votre communauté  ou de votre quartier, combien d'enfants de moins de 5 ans ont-ils tous ?`,
+         infants_in_community2 = `11.4) Parmi ces ${Q2_1_2} personnes dans votre communauté ou de votre quartier, combien d'enfants de moins de 5 ans ont-ils tous ?`) %>% 
+  mutate(infants =  coalesce(infants2, infants2), 
+         in_community = coalesce(in_community1, in_community2),
+          infants_in_community = coalesce(infants_in_community1, infants_in_community2))
 
+## recode variables 
 formative_survey <- formative_survey %>% 
   filter(!is.na(report_deaths)) %>% 
   mutate(deaths_1month = case_when(
@@ -93,15 +103,7 @@ denominator_plot <- formative_survey %>%
 cowplot::plot_grid(deaths_plot, denominator_plot)
 ```
 
-```{r, echo = F}
-formative_survey %>% 
-  summarize(num = mean(deaths_3month, na.rm = T),
-            denom = mean(network_talk_weekly, na.rm = T)) 
-
-1.333333/49/90 * 10000
-```
-
-
+## correlation between deaths reported and network size 
 ```{r}
 formative_survey %>%
   ggplot(aes(x = deaths_3month, y = network_talk_weekly)) + 
@@ -109,28 +111,16 @@ formative_survey %>%
   cowplot::theme_cowplot() + 
   geom_smooth()
   
+
+formative_sruve 
 cor(formative_survey$deaths_3month, 
      formative_survey$network_talk_weekly)
 ```
 
+
+
 ```{r}
-resample <- list()
-
-for (i in 1:1000) {
-resample[[i]] <- formative_survey %>% 
-  sample_n(replace = T, size = 150) %>% 
-  summarize(num = mean(deaths_3month, na.rm = T),
-            denom = mean(network_talk_weekly, na.rm = T)) %>% 
-  mutate(estimate = num / denom) 
-}
-
-bind_rows(resample) %>% 
-  mutate(estimate_emergency = estimate / 90 * 10000) %>% 
-  summarize(lower = quantile(estimate_emergency, 0.025),
-            upper = quantile(estimate_emergency, 0.975))
 
 ```
-
-
 
 
