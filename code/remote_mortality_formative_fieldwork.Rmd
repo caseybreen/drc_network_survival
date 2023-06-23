@@ -11,7 +11,7 @@ library(tidyverse)
 library(data.table)
 
 ## read in survey 
-formative_survey <- readxl::read_excel("data/Dataset mortality.xlsm", sheet = 2)
+formative_survey <- readxl::read_excel("../data/Dataset mortality.xlsm", sheet = 2)
 
 ## rename variables 
 formative_survey <- formative_survey %>% 

@@ -1,0 +1,46 @@
+---
+title: "estimate_ties"
+format: html
+editor: visual
+---
+
+## Quarto
+
+```{r}
+
+library(tidyverse)
+library(data.table)
+library(here)
+```
+
+```{r}
+pilot_1 <- read_csv(here("data/casey_pilot_test1.csv"))
+pilot_2 <- read_csv(here("data/pilot_2.csv"))
+```
+
+```{r}
+data %>% 
+  summarize(connections = sum(women_18) + sum(men_18) + sum(girls_5_18) + sum(boys_5_18) + sum(boys_u5) + sum(girls_u5), 
+            deaths = sum(deaths))
+
+
+
+```
+
+```{r}
+pilot_2 %>% 
+  summarize(connections = sum(women_count_18) + sum(men_count_18) + sum(girls_5_18) + sum(boys_5_18) + sum(boys_u5) + sum(girls_u5), 
+            deaths = sum(deaths))
+
+pilot_2 %>% 
+  mutate(connections = women_count_18 + men_count_18 + girls_5_18 + boys_5_18 + boys_u5 ++ girls_u5) %>% 
+  summarize(mean(connections))
+```
+
+```{r}
+pilot_2 %>% 
+  mutate(connections = women_count_18 + men_count_18 + girls_5_18 + boys_5_18 + boys_u5 ++ girls_u5) %>% 
+  ggplot(aes(x = connections)) + 
+  geom_histogram(color = "black", fill = "grey", binwidth = 1) + 
+  cowplot::theme_cowplot()
+```

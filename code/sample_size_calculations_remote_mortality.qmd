@@ -96,7 +96,7 @@ beta = 0.1                                     ## Power = 1 - beta
 nsm_sample <- seq(50, 1000, by = 50)           ## network survival method sample size 
 nsm_de <- 1.5                                  ## network survival method design effect 
 hh_de <- 1.5                                   ## household design effect 
-nsm_network <- 30                              ## network survival method 
+nsm_network <- 50                              ## network survival method 
 mrate <- 0.87                                  ## mortality rate (deaths / day / 10,000)
 time_window <- 90                              ## time window 
 lambda <- 0.4                                  ## difference between HH and NSM surveys
@@ -142,8 +142,8 @@ alpha <- 0.975                                ## Precision
 beta <- 0.1                                   ## Power = 1 - beta
 nsm_sample <- seq(50, 1000, by = 50)          ## network survival method sample size 
 nsm_de <- 1.5                                 ## network survival method design effect 
-nsm_network <- 30                             ## network survival method 
-mrate <- 0.87                                 ## mortality rate (deaths / day / 10,000)
+nsm_network <- 20                             ## network survival method 
+mrate <- 0.87                                  ## mortality rate (deaths / day / 10,000)
 time_window <- 90                             ## time window 
 mr_porportion <- mrate * time_window/10000    ## proportion of sample dying 
 

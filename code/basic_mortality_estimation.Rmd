@@ -1,0 +1,137 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(here)
+```
+
+
+```{r}
+results_ns <- readxl::read_xlsx("data/Tool1b_Clean_2023-05-05.xlsx", sheet = "main_networksurvival")
+```
+
+```{r}
+results_ns %>% 
+  mutate(diff = interval(as_date("2023-01-01"), start)) %>% 
+  mutate(diff = diff %/% days(1)) %>% 
+  select(diff) %>% 
+  summarize(mean(diff, na.rm = T))
+```
+
+```{r}
+## estimates for kin tie definition 
+point_estimate_kin <- results_ns %>%
+  filter(uuid_ki != "e8d182ec-05af-4967-9394-7323e31d7a04") %>% 
+  mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
+  filter(month != as_date("2023-05-01")) %>% 
+  filter(!is.na(zone_de_sante_name)) %>% 
+  group_by(zone_de_sante_name, month) %>% 
+  summarize(total_kin_connections = sum(num_total_kin, na.rm = T), 
+            n = sum(!is.na(num_total_kin)),
+            total_kin_deaths = sum(num_deaths_kin, na.rm = T)) %>% 
+  mutate(avg_kin_connections = total_kin_connections/n, 
+         cmr_estimate = (total_kin_deaths/total_kin_connections)*(10000/92.7957)) %>% 
+  select(zone_de_sante_name, month, cmr_estimate)
+
+bootstrap_list <- list()
+
+for (i in 1:1000) {
+  
+  bootstrap_list[[i]] <- results_ns %>% 
+  filter(!is.na(zone_de_sante_name)) %>% 
+  sample_n(size = n(), replace = T) %>% 
+   filter(uuid_ki != "e8d182ec-05af-4967-9394-7323e31d7a04") %>% 
+  mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
+  filter(month != as_date("2023-05-01")) %>% 
+  filter(!is.na(zone_de_sante_name)) %>% 
+  group_by(zone_de_sante_name, month) %>% 
+  summarize(total_kin_connections = sum(num_total_kin, na.rm = T), 
+            n = sum(!is.na(num_total_kin)),
+            total_kin_deaths = sum(num_deaths_kin, na.rm = T)) %>% 
+  mutate(avg_kin_connections = total_kin_connections/n, 
+         cmr_estimate = (total_kin_deaths/total_kin_connections)*(10000/92.7957)) %>% 
+  select(zone_de_sante_name, month, cmr_estimate) %>% 
+    mutate(sample = i)
+} 
+
+se_kin <- bind_rows(bootstrap_list) %>% 
+  group_by(zone_de_sante_name, month) %>% 
+  summarize(lower = quantile(cmr_estimate, probs = 0.025),
+            upper = quantile(cmr_estimate, probs = 0.975)) 
+
+kin_results <- point_estimate_kin %>% 
+  left_join(se_kin) %>% 
+  mutate(type = "kin")
+```
+
+## neighbor 
+```{r}
+## estimates for neighbor tie definition 
+point_estimate_neighbor <- results_ns %>% 
+  filter(uuid_ki != "e8d182ec-05af-4967-9394-7323e31d7a04") %>% 
+  mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
+  filter(month != as_date("2023-05-01")) %>% 
+  filter(!is.na(zone_de_sante_name)) %>% 
+  group_by(zone_de_sante_name, month) %>% 
+  summarize(total_neighbor_connections = sum(as.numeric(num_total_neighbour), na.rm = T), 
+            n = sum(!is.na(num_total_neighbour)),
+            total_neighbor_deaths = sum(num_deaths_neighbours, na.rm = T)) %>% 
+  mutate(avg_neighbor_connections = total_neighbor_connections/n, 
+         cmr_estimate = (total_neighbor_deaths/total_neighbor_connections)*(10000/92.7957)) %>% 
+  select(zone_de_sante_name, month, cmr_estimate)
+
+bootstrap_list <- list()
+
+for (i in 1:1000) {
+  
+  bootstrap_list[[i]] <- results_ns %>%
+    filter(uuid_ki != "e8d182ec-05af-4967-9394-7323e31d7a04") %>% 
+    filter(!is.na(zone_de_sante_name)) %>% 
+    sample_n(size = n(), replace = T) %>% 
+    mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
+    filter(month != as_date("2023-05-01")) %>% 
+    filter(!is.na(zone_de_sante_name)) %>% 
+    group_by(zone_de_sante_name, month) %>% 
+  summarize(total_neighbor_connections = sum(as.numeric(num_total_neighbour), na.rm = T), 
+            n = sum(!is.na(num_total_neighbour)),
+            total_neighbor_deaths = sum(num_deaths_neighbours, na.rm = T)) %>% 
+    mutate(avg_neighbor_connections = total_neighbor_connections/n, 
+           cmr_estimate = (total_neighbor_deaths/total_neighbor_connections)*(10000/92.7957)) %>% 
+  select(zone_de_sante_name, month, cmr_estimate) %>% 
+    mutate(sample = i)
+} 
+
+se_neighbor <- bind_rows(bootstrap_list) %>% 
+  group_by(zone_de_sante_name, month) %>% 
+  summarize(lower = quantile(cmr_estimate, probs = 0.025),
+            upper = quantile(cmr_estimate, probs = 0.975)) 
+
+neighbor_results <- point_estimate_neighbor %>% 
+  left_join(se_neighbor) %>% 
+  mutate(type = "neighbor")
+```
+
+
+```{r}
+monthly_estimate <- bind_rows(kin_results, neighbor_results) %>% 
+  ggplot(aes(x = as.factor(month), y = cmr_estimate, ymin = lower, ymax = upper, color = type, shape = type)) + 
+    geom_line() + 
+  geom_pointrange(position= position_dodge(0.1), size = .75, fill = "white") + 
+  cowplot::theme_cowplot() + 
+  ylim(0, 1.05) + 
+  labs(x = "Zone De Sante",
+       y = "Crude Mortality Rate") + 
+  scale_shape_manual(values = c(21, 23)) +
+  ggsci::scale_color_lancet() +
+  # scale_x_date(date_breaks = "1 month") + 
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  geom_hline(yintercept = 0.58, linetype = "dashed", color = "grey") + 
+  facet_wrap(~zone_de_sante_name, ncol = 1)
+
+ggsave(plot = monthly_estimate, filename = here("figures/monthly_estimate.png"), width = 6, height = 6)
+```
