@@ -7,6 +7,7 @@ Summary: Code to read in network survey data
 Notes:
 
 * date_join_final_death = date of death 
+    * combination of 
 * death_date_dc = date of interview 
 
 ```{r}
