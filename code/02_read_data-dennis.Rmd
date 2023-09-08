@@ -1,0 +1,41 @@
+---
+title: "Read in network survey data"
+---
+
+Summary: Code to read in network survey data 
+
+Notes:
+
+* date_join_final_death = date of death 
+* death_date_dc = date of interview 
+
+```{r}
+## library packages 
+library(tidyverse)
+library(here)
+
+## read in respondent-level file  
+results_ns <- readxl::read_xlsx(here("data/clean_data/2023-09-08/network_survey_2023-08-16.xlsx"), sheet = "main_networksurvival")
+
+## read in death file  
+deaths <- readxl::read_xlsx(here("data/clean_data/2023-09-08/network_survey_2023-08-16.xlsx"), sheet = "deaths")
+```
+
+
+```{r}
+## plot month of death distributions by month of report 
+report_plot <- deaths %>% 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
+  mutate(report_month = lubridate::floor_date(x = as_date(death_date_dc), unit = "month")) %>% 
+  filter(report_month != as_date("2023-02-01")) %>% ## filter out February interviews  
+  filter(!is.na(death_month)) %>% 
+  ggplot(aes(x = as.factor(death_month))) + 
+  geom_bar(position=position_dodge2(.9), fill = "grey", color = "black") +
+geom_text(stat='count', aes(label=..count..), vjust = -.5) + 
+  facet_wrap(~report_month, nrow = 4) + 
+  ylim(0, 80) + 
+  cowplot::theme_cowplot() + 
+  labs(x = "Month of Death",
+       title = "Reported Number of Deaths (Panels = Month of Interview)")
+```
+

@@ -1,0 +1,127 @@
+---
+title: "R Notebook"
+author: Casey Breen
+---
+
+
+```{r}
+## read in packages 
+library(tidyverse)
+library(data.table)
+library(gt)
+library(janitor)
+
+## read in data 
+results_ns <- readxl::read_xlsx("~/Downloads/Tool1b_Clean_2023-06-30.xlsx", sheet = "main_networksurvival")
+deaths <- readxl::read_xlsx("~/Downloads/Tool1b_Clean_2023-06-30.xlsx", sheet = "deaths")
+```
+
+
+```{r}
+results_ns_clean <- results_ns %>%
+  filter(consent == "yes") 
+
+results_ns_clean %>% 
+  summarise(across(everything(), ~ sum(is.na(.x))))
+
+```
+
+Notes
+
+* drop missing num_total_kin_male_child_under5 
+* drop consent 
+* drop num_total_kin
+* num_deaths_male_child
+* num_deaths_female_child
+* num_deaths_male_grandchild
+* num_deaths_female_grandchild
+
+```{r}
+results_ns_clean %>% 
+  filter(is.na(num_total_hh_neighbour) | is.na(num_total_neighbour)) %>% 
+  select(num_total_hh_neighbour, num_total_neighbour)
+
+results_ns_clean %>% 
+  filter(is.na(num_deaths_kin))
+
+results_ns_clean %>% 
+  filter(is.na(num_deaths_neighbours))
+
+results_ns_clean %>% 
+  filter(is.na(num_deaths_hh))
+```
+
+
+```{r}
+results_ns_clean %>% 
+  filter(is.na(ki_sex))
+
+results_ns_clean %>% 
+  filter(is.na(ki_age))
+
+results_ns_clean %>% 
+  select(material_house, education_level, marital_status, cooking_fuel, bed, radio, livelihood) %>% 
+  summarise(across(everything(), ~ sum(is.na(.x))))
+```
+
+
+First, we drop any denominator (neighbors) with missing data (N = 3) and denominator (kin) with missing data (n = 18). 
+
+Next, we will drop numerators with missing data. We will observations with both missing data for households (13), neighbors (2), and kin (20). 
+
+Finally, we will drop data with missing weighting fields. Filtering out material house, education level, marital status, cooking fuel (1), bed (1), radio (1), and livelihood (1). 
+
+## Clean Script 
+```{r}
+## Clean script
+
+## restrict to consent == yes 
+results_ns_clean <- results_ns %>%
+  filter(consent == "yes") 
+
+## drop missing neighbor, kin, and 
+results_ns_clean <- results_ns_clean %>% 
+  filter(!is.na(num_total_hh_neighbour) & !is.na(num_total_neighbour) & !is.na(num_deaths_kin))
+
+## drop missing deaths 
+results_ns_clean <- results_ns_clean %>% 
+  filter(!is.na(num_deaths_kin) & !is.na(num_deaths_neighbours) & !is.na(num_deaths_hh))
+
+## drop missing weighting variables  
+results_ns_clean <- results_ns_clean %>% 
+  filter(!is.na(cooking_fuel) & !is.na(bed) & !is.na(radio) & !is.na(livelihood))
+
+
+```
+
+```{r}
+deaths %>% 
+  filter(is.na(death_zs))
+
+## deaths 
+deaths <- deaths %>% 
+  filter(!date_join_final_death %in% c(44927, 45061, 44928, 44951, 45030))
+```
+
+
+```{r}
+## deaths kin 
+deaths %>%
+  count(`death_relationship/neighbour`)
+
+## 
+results_ns_clean %>% 
+  summarize(sum(num_deaths_kin))
+
+## 
+results_ns_clean %>% 
+  summarize(sum(num_deaths_neighbours))
+
+```
+
+```{r}
+
+```
+
+
+

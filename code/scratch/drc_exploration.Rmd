@@ -1,0 +1,139 @@
+---
+title: "R Notebook"
+author: "Casey Breen"
+---
+
+Summary: Preliminary exploration of DRC Data 
+
+
+```{r}
+library(tidyverse)
+library(data.table)
+library(gt)
+```
+
+
+```{r}
+results_ns <- readxl::read_xlsx("~/Downloads/Tool1b_Clean_2023-06-30.xlsx", sheet = "main_networksurvival")
+deaths <- readxl::read_xlsx("~/Downloads/Tool1b_Clean_2023-06-30.xlsx", sheet = "deaths")
+```
+
+## Interviews per region per month 
+
+```{r}
+results_ns %>% 
+  mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
+  filter(!is.na(month)) %>% 
+  group_by(month, zone_de_sante_name) %>% 
+  count() %>% 
+  filter(!is.na(zone_de_sante_name)) %>% 
+  pivot_wider(names_from = zone_de_sante_name, values_from = n) %>% 
+  gt()
+  # summarize(kin_deaths = sum(num_deaths_kin, na.rm = T), neighbor_deaths = sum(num_deaths_neighbours, na.rm = T), sample_size = n())
+```
+
+
+```{r}
+results_ns %>% 
+  mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
+    filter(!is.na(month)) %>% 
+  group_by(month) %>%
+  summarize(kin_deaths = sum(num_deaths_kin, na.rm = T), neighbor_deaths = sum(num_deaths_neighbours, na.rm = T), sample_size = n())
+```
+
+
+```{r}
+results_ns %>% 
+  # group_by(zone_de_sante_name) %>% 
+  mutate(person_time = lubridate::interval(recall_date, end)) %>% 
+  mutate(person_time = person_time %/% days(1)) %>% 
+  summarize(total_neighbor_person_time = sum(as.numeric(num_total_neighbour) * person_time, na.rm = T), deaths = sum(num_deaths_neighbours, na.rm = T)) %>% 
+  mutate(mortality_rate = 10000* deaths / total_neighbor_person_time)
+```
+
+```{r}
+results_ns %>% 
+  # group_by(zone_de_sante_name) %>% 
+  mutate(person_time = lubridate::interval(recall_date, end)) %>% 
+  mutate(person_time = person_time %/% days(1)) %>% 
+  summarize(total_neighbor_person_time = sum(as.numeric(num_total_kin) * person_time, na.rm = T), deaths = sum(num_deaths_kin, na.rm = T)) %>% 
+  mutate(mortality_rate = 10000* deaths / total_neighbor_person_time)
+```
+
+
+```{r}
+results_ns %>% filter(enum == "team11") %>% mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% filter(!is.na(month)) %>% 
+  group_by(month) %>% 
+  summarize(mean(ki_age, na.rm = T), n())
+```
+
+
+```{r}
+results_ns %>% 
+  filter(enum == "team11") %>% 
+  mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
+  filter(!is.na(month)) %>% 
+  group_by(month) %>% 
+  mutate(int_length = lubridate::interval(start, end)) %>% 
+  mutate(int_length = int_length %/% minutes(1)) %>% 
+  summarize(mean(int_length))
+```
+
+```{r}
+results_ns %>% 
+  group_by(enum) %>%
+  summarize(mean_neighbor = mean(num_total_neighbour, na.rm = T), mean_kin = mean(num_total_kin, na.rm = T), n = n()) %>% 
+  filter(n > 20)
+```
+
+```{r}
+deaths %>% 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
+  mutate(report_month = lubridate::floor_date(x = as_date(death_date_dc), unit = "month")) %>% 
+  count(report_month, death_month) %>% 
+  filter(report_month != as_date("2023-02-01")) %>% ## filter out interviews from February 
+  filter(death_month == as_date("2023-01-01")) ## filter to January deaths
+
+deaths %>% 
+  # filter(death_relationship == "kin") %>% 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
+  mutate(report_month = lubridate::floor_date(x = as_date(death_date_dc), unit = "month")) %>% 
+  filter(report_month != as_date("2023-02-01")) %>% 
+  filter(death_month == as_date("2023-02-01")) %>% 
+  group_by(report_month) %>% 
+  summarize(total_kin_deaths = sum(`death_relationship/family`),
+            total_neighbor_deaths = sum(`death_relationship/neighbour`)) %>% 
+  mutate(death_month = as_date("2023-03-01")) %>% 
+  select(report_month, death_month, total_kin_deaths, total_neighbor_deaths)
+ 
+deaths %>% 
+  group_by(death_zs) %>% 
+  # filter(death_relationship == "kin") %>% 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
+  mutate(report_month = lubridate::floor_date(x = as_date(death_date_dc), unit = "month")) %>% 
+  filter(report_month != as_date("2023-02-01")) %>% 
+  filter(death_month == as_date("2023-01-01")) %>% 
+  count(death_month, report_month)
+```
+
+```{r}
+report_plot <- deaths %>% 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
+  mutate(report_month = lubridate::floor_date(x = as_date(death_date_dc), unit = "month")) %>% 
+  mutate(report_month_label = lubridate::month(report_month, label = TRUE, abbr = TRUE)) %>% 
+  filter(report_month != as_date("2023-02-01")) %>% ## filter out February interviews  
+ # filter(death_month == as_date("2023-01-01")) %>%  ## restrict to January deaths 
+  filter(!is.na(death_month)) %>% 
+  ggplot(aes(x = as.factor(death_month))) + 
+  geom_bar(position=position_dodge2(.9), fill = "grey", color = "black") +
+geom_text(stat='count', aes(label=..count..), vjust = -.5) + 
+  facet_wrap(~report_month, nrow = 4) + 
+  ylim(0, 80) + 
+  cowplot::theme_cowplot() + 
+  labs(x = "Month of Death",
+       title = "Reported Number of Deaths (Panels = Month of Interview)")
+
+ggsave(here("figures/report_plot.pdf"), height = 8, width = 8)
+```
+
+

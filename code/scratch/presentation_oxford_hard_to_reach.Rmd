@@ -1,0 +1,106 @@
+---
+title: "Presentation - Oxford Hard-To-Reach"
+author: "Casey Breen"
+---
+
+Summary: Preliminary exploration of DRC Data 
+
+
+```{r}
+library(tidyverse)
+library(data.table)
+library(gt)
+library(xtable)
+library(cowplot)
+```
+
+
+```{r}
+results_ns <- readxl::read_xlsx("~/Downloads/Tool1b_Clean_2023-06-30.xlsx", sheet = "main_networksurvival")
+deaths <- readxl::read_xlsx("~/Downloads/Tool1b_Clean_2023-06-30.xlsx", sheet = "deaths")
+```
+
+## Interviews per region per month 
+
+```{r}
+interviews <- results_ns %>% 
+  mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
+  filter(!is.na(month)) %>% 
+  group_by(month, zone_de_sante_name) %>% 
+  count() %>% 
+  filter(!is.na(zone_de_sante_name)) %>% 
+  pivot_wider(names_from = zone_de_sante_name, values_from = n) 
+
+
+print(xtable(interviews, type = "latex"), file = "filename2.tex")
+
+```
+
+## 
+
+```{r}
+deaths %>% 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
+  mutate(report_month = lubridate::floor_date(x = as_date(death_date_dc), unit = "month")) %>% 
+  filter(report_month != as_date("2023-02-01")) %>% ## filter out February interviews  
+  filter(!is.na(death_month)) %>% 
+  ggplot(aes(x = death_month )) + 
+  geom_histogram(binwidth = 10) + 
+  facet_wrap(~report_month) + 
+  cowplot::theme_cowplot() 
+```
+## Deaths Histogram
+
+```{r}
+kin_deaths <- results_ns %>% 
+  count(num_deaths_kin) %>% 
+  filter(!is.na(num_deaths_kin)) %>% 
+  rename(deaths = num_deaths_kin) %>% 
+  mutate(type = "kin")
+
+neighbor_deaths <- results_ns %>% 
+  count(num_deaths_neighbours) %>% 
+  filter(!is.na(num_deaths_neighbours)) %>%
+  rename(deaths = num_deaths_neighbours) %>% 
+  mutate(type = "neighbor")
+
+plot_deaths <- bind_rows(kin_deaths, neighbor_deaths) %>% 
+  ggplot(aes(x = deaths, y = n)) + 
+  geom_col(color= "black", fill = "grey") + 
+  facet_wrap(~type) + 
+  theme_cowplot()
+
+ggsave(plot = plot_deaths, filename = "death_plot.png", width = 7, height = 4)
+```
+
+## Network size histogram 
+
+```{r}
+kin_denom <- results_ns %>% 
+  count(num_total_kin) %>% 
+  filter(!is.na(num_total_kin)) %>% 
+  rename(size = num_total_kin) %>% 
+  mutate(type = "Kin degree (mean = 27)")
+
+neighbor_denom <- results_ns %>% 
+  count(num_total_neighbour) %>% 
+  filter(!is.na(num_total_neighbour)) %>%
+  rename(size = num_total_neighbour) %>% 
+  mutate(type = "Neighbor degree (mean = 29)")
+
+plot_denom <- bind_rows(kin_denom, neighbor_denom) %>% 
+  ggplot(aes(x = size, y = n)) + 
+  geom_col(color= "black", fill = "grey") + 
+  facet_wrap(~type) + 
+  theme_cowplot()
+
+ggsave(plot = plot_denom, filename = "degree_plot.png", width = 7, height = 4)
+```
+
+
+
+```{r}
+
+```
+
+

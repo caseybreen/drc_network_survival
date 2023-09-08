@@ -1,0 +1,163 @@
+---
+title: "Mortality Estimation"
+---
+
+```{r}
+library(tidyverse)
+library(data.table)
+library(gt)
+
+results_ns <- readxl::read_xlsx("~/Downloads/Tool1b_Clean_2023-06-30.xlsx", sheet = "main_networksurvival")
+deaths <- readxl::read_xlsx("~/Downloads/Tool1b_Clean_2023-06-30.xlsx", sheet = "deaths")
+```
+
+## Estimate exposure 
+
+```{r}
+results_ns %>% 
+  count(month = lubridate::floor_date(x = as_date(start), unit = "month"))
+
+exposure <- results_ns  %>% 
+  summarize(exp_jan = lubridate::interval(as_date("2023-01-01"), pmin(as_date("2023-02-01"), as_date(start))) %/% days(1) * num_total_neighbour,
+            exp_feb = lubridate::interval(as_date("2023-02-01"), pmin(as_date("2023-03-01"), as_date(start))) %/% days(1) * num_total_neighbour,
+            exp_mar = lubridate::interval(as_date("2023-03-01"), pmin(as_date("2023-04-01"), as_date(start))) %/% days(1) * num_total_neighbour,
+            exp_apr = lubridate::interval(as_date("2023-04-01"), pmin(as_date("2023-05-01"), as_date(start))) %/% days(1) * num_total_neighbour,
+            exp_may = lubridate::interval(as_date("2023-05-01"), pmin(as_date("2023-06-01"), as_date(start))) %/% days(1) * num_total_neighbour,
+            exp_jun = lubridate::interval(as_date("2023-06-01"), pmin(as_date("2023-07-01"), as_date(start))) %/% days(1) * num_total_neighbour)
+
+exposure_monthly <- exposure %>% 
+  mutate(across(colnames(exposure), ~pmax(0, .x))) %>% 
+  summarize(across(colnames(exposure), ~sum(.x, na.rm = T)))
+  # mutate(monthly_exposure_apr = pmax(0, monthly_exposure_apr))
+
+exposure_monthly <- exposure_monthly %>% 
+  mutate(id = 1) %>% 
+  pivot_longer(-id)
+
+exposure_monthly %>% 
+  ggplot(aes(x = reorder(name, -value), y = value )) + 
+  geom_col() + 
+  cowplot::theme_cowplot() + 
+  labs(x = "Month", y = "Value")
+```
+
+
+
+```{r}
+exposure_neighbor <- results_ns  %>% 
+  summarize(exp_jan = lubridate::interval(as_date("2023-01-01"), pmin(as_date("2023-02-01"), as_date(start))) %/% days(1) * num_total_neighbour,
+            exp_feb = lubridate::interval(as_date("2023-02-01"), pmin(as_date("2023-03-01"), as_date(start))) %/% days(1) * num_total_neighbour,
+            exp_mar = lubridate::interval(as_date("2023-03-01"), pmin(as_date("2023-04-01"), as_date(start))) %/% days(1) * num_total_neighbour,
+            exp_apr = lubridate::interval(as_date("2023-04-01"), pmin(as_date("2023-05-01"), as_date(start))) %/% days(1) * num_total_neighbour,
+            exp_may = lubridate::interval(as_date("2023-05-01"), pmin(as_date("2023-06-01"), as_date(start))) %/% days(1) * num_total_neighbour,
+            exp_jun = lubridate::interval(as_date("2023-06-01"), pmin(as_date("2023-07-01"), as_date(start))) %/% days(1) * num_total_neighbour)
+
+exposure_monthly_neighbor <- exposure_neighbor %>% 
+  mutate(across(colnames(exposure), ~pmax(0, .x))) %>% 
+  summarize(across(colnames(exposure), ~sum(.x, na.rm = T)))
+
+exposure_monthly_kin <- exposure_monthly_neighbor %>% 
+  mutate(id = 1) %>% 
+  pivot_longer(-id)
+
+## Disaggregate mortality rate 
+deaths %>% 
+  filter(`death_relationship/neighbour` == 1) %>% 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
+  count(death_month) %>% 
+  filter(!is.na(death_month)) %>% 
+  bind_cols(exposure_monthly_kin) %>% 
+  mutate(death_rate = 10000 * n / value)
+
+deaths %>% 
+  filter(`death_relationship/neighbour` == 1) %>% 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
+  count(death_month) %>% 
+  filter(!is.na(death_month)) %>% 
+  bind_cols(exposure_monthly_kin) %>% 
+  mutate(death_rate = 10000 * n / value) %>% 
+  summarize(mortality_rate = 10000 * sum(n) / sum(value))
+```
+
+
+
+```{r}
+exposure_kin <- results_ns  %>% 
+  summarize(exp_jan = lubridate::interval(as_date("2023-01-01"), pmin(as_date("2023-02-01"), as_date(start))) %/% days(1) * num_total_kin,
+            exp_feb = lubridate::interval(as_date("2023-02-01"), pmin(as_date("2023-03-01"), as_date(start))) %/% days(1) * num_total_kin,
+            exp_mar = lubridate::interval(as_date("2023-03-01"), pmin(as_date("2023-04-01"), as_date(start))) %/% days(1) * num_total_kin,
+            exp_apr = lubridate::interval(as_date("2023-04-01"), pmin(as_date("2023-05-01"), as_date(start))) %/% days(1) * num_total_kin,
+            exp_may = lubridate::interval(as_date("2023-05-01"), pmin(as_date("2023-06-01"), as_date(start))) %/% days(1) * num_total_kin,
+            exp_jun = lubridate::interval(as_date("2023-06-01"), pmin(as_date("2023-07-01"), as_date(start))) %/% days(1) * num_total_kin)
+
+exposure_monthly_kin <- exposure_kin %>% 
+  mutate(across(colnames(exposure), ~pmax(0, .x))) %>% 
+  summarize(across(colnames(exposure), ~sum(.x, na.rm = T)))
+  # mutate(monthly_exposure_apr = pmax(0, monthly_exposure_apr))
+
+exposure_monthly_kin <- exposure_monthly_kin %>% 
+  mutate(id = 1) %>% 
+  pivot_longer(-id)
+
+deaths %>% 
+  filter(`death_relationship/neighbour` == 0) %>% 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
+  count(death_month) %>% 
+  filter(!is.na(death_month)) %>% 
+  bind_cols(exposure_monthly_kin) %>% 
+  mutate(death_rate = 10000 * n / value)
+
+deaths %>% 
+  filter(`death_relationship/neighbour` == 0) %>% 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
+  count(death_month) %>% 
+  filter(!is.na(death_month)) %>% 
+  bind_cols(exposure_monthly_kin) %>% 
+  mutate(death_rate = 10000 * n / value) %>% 
+  summarize( 10000 * sum(n) / sum(value))
+```
+
+
+# Alternative estimation 
+
+Here, I try simply estimating mortality using 6 months of data beforehand. 
+
+```{r}
+deaths %>% 
+  mutate(date_diff = lubridate::interval(date_join_final_death, death_date_dc) %/% days(1)) %>% 
+    filter(date_diff < 30) %>% 
+  count(`death_relationship/neighbour`)
+
+results_ns %>% 
+  filter(!is.na(num_total_kin)) %>% 
+  summarize(sum(num_total_kin, na.rm = T))
+
+
+51/ (69272 * 30) * 10000 
+
+```
+
+```{r}
+deaths %>% 
+  mutate(date_diff = lubridate::interval(date_join_final_death, death_date_dc) %/% days(1)) %>% 
+  ggplot() + 
+  geom_histogram(aes(x = date_diff), binwidth = 10)
+```
+
+
+```{r}
+deaths %>% 
+  filter(floor_date(as_date(date_join_final_death), unit = "months") == floor_date(as_date(death_date_dc), unit = "months")) %>% count(`death_relationship/family`)
+```
+
+
+
+```{r}
+results_ns %>% 
+  mutate(exp = (lubridate::interval(lubridate::floor_date(as_date(start), unit = "months"), as_date(start)) %/% days(1) + 1) * num_total_neighbour ) %>%
+  select(exp, start) %>% 
+  summarize(sum(exp, na.rm = T))
+```
+
+
+

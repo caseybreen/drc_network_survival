@@ -12,7 +12,7 @@ library(here)
 
 
 ```{r}
-results_ns <- readxl::read_xlsx("data/Tool1b_Clean_2023-05-05.xlsx", sheet = "main_networksurvival")
+results_ns <- readxl::read_xlsx("~/Downloads/Tool1b_Clean_2023-06-30.xlsx", sheet = "main_networksurvival")
 ```
 
 ```{r}
@@ -28,14 +28,14 @@ results_ns %>%
 point_estimate_kin <- results_ns %>%
   filter(uuid_ki != "e8d182ec-05af-4967-9394-7323e31d7a04") %>% 
   mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
-  filter(month != as_date("2023-05-01")) %>% 
+ # filter(month != as_date("2023-05-01")) %>% 
   filter(!is.na(zone_de_sante_name)) %>% 
   group_by(zone_de_sante_name, month) %>% 
   summarize(total_kin_connections = sum(num_total_kin, na.rm = T), 
             n = sum(!is.na(num_total_kin)),
             total_kin_deaths = sum(num_deaths_kin, na.rm = T)) %>% 
   mutate(avg_kin_connections = total_kin_connections/n, 
-         cmr_estimate = (total_kin_deaths/total_kin_connections)*(10000/92.7957)) %>% 
+         cmr_estimate = (total_kin_deaths/total_kin_connections)*(10000/121.1204)) %>% 
   select(zone_de_sante_name, month, cmr_estimate)
 
 bootstrap_list <- list()
@@ -47,7 +47,7 @@ for (i in 1:1000) {
   sample_n(size = n(), replace = T) %>% 
    filter(uuid_ki != "e8d182ec-05af-4967-9394-7323e31d7a04") %>% 
   mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
-  filter(month != as_date("2023-05-01")) %>% 
+  # filter(month != as_date("2023-05-01")) %>% 
   filter(!is.na(zone_de_sante_name)) %>% 
   group_by(zone_de_sante_name, month) %>% 
   summarize(total_kin_connections = sum(num_total_kin, na.rm = T), 
@@ -75,7 +75,7 @@ kin_results <- point_estimate_kin %>%
 point_estimate_neighbor <- results_ns %>% 
   filter(uuid_ki != "e8d182ec-05af-4967-9394-7323e31d7a04") %>% 
   mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
-  filter(month != as_date("2023-05-01")) %>% 
+  # filter(month != as_date("2023-05-01")) %>% 
   filter(!is.na(zone_de_sante_name)) %>% 
   group_by(zone_de_sante_name, month) %>% 
   summarize(total_neighbor_connections = sum(as.numeric(num_total_neighbour), na.rm = T), 
@@ -94,7 +94,7 @@ for (i in 1:1000) {
     filter(!is.na(zone_de_sante_name)) %>% 
     sample_n(size = n(), replace = T) %>% 
     mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
-    filter(month != as_date("2023-05-01")) %>% 
+    # filter(month != as_date("2023-05-01")) %>% 
     filter(!is.na(zone_de_sante_name)) %>% 
     group_by(zone_de_sante_name, month) %>% 
   summarize(total_neighbor_connections = sum(as.numeric(num_total_neighbour), na.rm = T), 
