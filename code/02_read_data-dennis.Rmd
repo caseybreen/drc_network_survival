@@ -1,5 +1,5 @@
 ---
-title: "Distribution of reported deaths"
+title: "Read in network survey data"
 ---
 
 Summary: Code to read in network survey data 
@@ -7,7 +7,6 @@ Summary: Code to read in network survey data
 Notes:
 
 * date_join_final_death = date of death 
-    * combination of 
 * death_date_dc = date of interview 
 
 ```{r}
@@ -24,7 +23,7 @@ deaths <- readxl::read_xlsx(here("data/clean_data/2023-09-08/network_survey_2023
 
 
 ```{r}
-## plot distribution 
+## plot month of death distributions by month of report 
 report_plot <- deaths %>% 
   mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
   mutate(report_month = lubridate::floor_date(x = as_date(death_date_dc), unit = "month")) %>% 
