@@ -1,0 +1,122 @@
+---
+title: "scratch"
+format: html
+editor: visual
+---
+
+## Quarto
+
+```{r}
+## library packages 
+library(tidyverse)
+library(data.table)
+library(gt)
+library(here)
+library(cowplot)
+
+## read in data 
+survey_df <- read_csv(here("data/clean_data/casey_files/weight_survey.csv"))
+death_df <- read_csv(here("data/clean_data/casey_files/deaths_weighted.csv")) %>% 
+  mutate(uuid_ki = uuid_ki4) %>% 
+  mutate(zone_de_sante_name = case_when(
+      death_zs == 746101 ~ "Kalemie",           
+      death_zs == 746601 ~ "Nyunzu",            
+      death_zs == 746102 ~ "Nyemba"))   
+```
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(cowplot)
+
+# Calculate time difference and categorize deaths into time groups
+death_df <- death_df %>%
+  mutate(
+    time_diff = as.numeric(difftime(as_date(death_date_dc), as_date(date_join_final_death), units = "days")),
+    death_period = cut(time_diff, breaks = c(0, 30, 60, 90, 120, 150, Inf), labels = c("Last 1 month", "1-2 months", "2-3 months", "3-4 months", "4-5 months", "5+ months"))
+  )
+
+# Aggregate data by month of interview and death period, filter out February and NA
+agg_data <- death_df %>%
+  filter(!is.na(death_period) & month(death_date_dc) != 2) %>%
+  group_by(month = floor_date(death_date_dc, "month"), death_period) %>%
+  summarize(death_count = n()) %>%
+  filter(death_period %in% c("Last 1 month", "1-2 months", "2-3 months"))
+
+# Generate the plot
+ggplot(agg_data, aes(x = month, y = death_count, color = death_period)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Reported Deaths by Month of Interview",
+       x = "Month of Interview",
+       y = "Number of Reported Deaths") +
+  theme_cowplot() +
+  theme(legend.position = "bottom") + 
+  ylim(0, 100)
+
+```
+
+```{r}
+# Recode death_relationship/family into a new variable "tie"
+death_df <- death_df %>%
+  mutate(
+    tie = if_else(`death_relationship/family` == 0, "neighbors + hh", "kin")
+  )
+
+# Aggregate data by month of interview, death period, and tie, while filtering out February and NA
+agg_data <- death_df %>%
+  filter(zone_de_sante_name != "Nyunzu") %>% 
+  filter(!is.na(death_period) & month(death_date_dc) != 2) %>%
+  group_by(month = floor_date(death_date_dc, "month"), death_period, tie) %>%
+  summarize(death_count = n()) %>% 
+  filter(death_period %in% c("Last 1 month", "1-2 months", "2-3 months"))
+
+# Generate the plot
+# Generate the plot
+ggplot(agg_data, aes(x = month, y = death_count, color = death_period)) + 
+  geom_line() +
+  geom_point(size = 2,  fill = "white", shape = 21, position = position_dodge2(.1)) + 
+  labs(title = "Reported Deaths by Month of Interview",
+       x = "Month of Interview",
+       y = "Number of Reported Deaths") +
+  theme_cowplot() +
+  theme(legend.position = "bottom") + 
+  ylim(0, 50) + 
+  scale_color_viridis_d() + 
+  facet_wrap(~tie)
+
+```
+
+```{r}
+agg_data <- death_df %>%
+  filter(!is.na(death_period) & month(death_date_dc) != 2) %>%
+  group_by(month = floor_date(death_date_dc, "month"), death_period, tie,zone_de_sante_name) %>%
+  summarize(death_count = n()) %>% 
+  filter(death_period %in% c("Last 1 month", "1-2 months", "2-3 months"))
+
+agg_data <- death_df %>%
+  filter(!is.na(death_period) & month(death_date_dc) != 2) %>%
+  group_by(month = floor_date(death_date_dc, "month"), death_period, tie, zone_de_sante_name) %>%
+  summarize(death_count = n(), .groups = 'drop') %>%
+  complete(month, death_period, tie, zone_de_sante_name, fill = list(death_count = 0)) %>% 
+    filter(death_period %in% c("Last 1 month", "1-2 months", "2-3 months"))
+
+# Generate the plot
+ggplot(agg_data, aes(x = month, y = death_count, color = death_period, linetype = death_period)) +
+  geom_line() +  # Adding dodge to line
+  geom_point(size = 2,  fill = "white", shape = 21, position = position_dodge2(.1)) +  # Adding dodge to points
+  labs(title = "Reported Deaths by Month of Interview",
+       x = "Month of Interview",
+       y = "Number of Reported Deaths") +
+  theme_cowplot() +
+  scale_color_viridis_d() + 
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey") + 
+  theme(legend.position = "bottom") + 
+  facet_grid(zone_de_sante_name ~ tie)
+```
+
+```{r}
+death_df %>%
+  filter(!is.na(death_period) & month(death_date_dc) != 2) %>%
+  group_by(month = floor_date(death_date_dc, "month"), death_period, tie)
+```

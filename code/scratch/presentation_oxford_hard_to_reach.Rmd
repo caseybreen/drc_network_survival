@@ -12,18 +12,25 @@ library(data.table)
 library(gt)
 library(xtable)
 library(cowplot)
+library(here)
 ```
 
 
 ```{r}
-results_ns <- readxl::read_xlsx("~/Downloads/Tool1b_Clean_2023-06-30.xlsx", sheet = "main_networksurvival")
-deaths <- readxl::read_xlsx("~/Downloads/Tool1b_Clean_2023-06-30.xlsx", sheet = "deaths")
+## read in data 
+survey_df <- read_csv(here("data/clean_data/casey_files/weight_survey.csv"))
+death_df <- read_csv(here("data/clean_data/casey_files/deaths_weighted.csv")) %>% 
+  mutate(uuid_ki = uuid_ki4) %>% 
+  mutate(zone_de_sante_name = case_when(
+      death_zs == 746101 ~ "Kalemie",           
+      death_zs == 746601 ~ "Nyunzu",            
+      death_zs == 746102 ~ "Nyemba"))  
 ```
 
 ## Interviews per region per month 
 
 ```{r}
-interviews <- results_ns %>% 
+interviews <- survey_df %>% 
   mutate(month = lubridate::floor_date(x = as_date(start), unit = "month")) %>% 
   filter(!is.na(month)) %>% 
   group_by(month, zone_de_sante_name) %>% 
@@ -39,7 +46,7 @@ print(xtable(interviews, type = "latex"), file = "filename2.tex")
 ## 
 
 ```{r}
-deaths %>% 
+death_df %>% 
   mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
   mutate(report_month = lubridate::floor_date(x = as_date(death_date_dc), unit = "month")) %>% 
   filter(report_month != as_date("2023-02-01")) %>% ## filter out February interviews  
@@ -52,17 +59,17 @@ deaths %>%
 ## Deaths Histogram
 
 ```{r}
-kin_deaths <- results_ns %>% 
+kin_deaths <- survey_df %>% 
   count(num_deaths_kin) %>% 
   filter(!is.na(num_deaths_kin)) %>% 
   rename(deaths = num_deaths_kin) %>% 
-  mutate(type = "kin")
+  mutate(type = "Reported kin deaths")
 
-neighbor_deaths <- results_ns %>% 
+neighbor_deaths <- survey_df %>% 
   count(num_deaths_neighbours) %>% 
   filter(!is.na(num_deaths_neighbours)) %>%
   rename(deaths = num_deaths_neighbours) %>% 
-  mutate(type = "neighbor")
+  mutate(type = "Reported neighbor deaths")
 
 plot_deaths <- bind_rows(kin_deaths, neighbor_deaths) %>% 
   ggplot(aes(x = deaths, y = n)) + 
@@ -70,19 +77,18 @@ plot_deaths <- bind_rows(kin_deaths, neighbor_deaths) %>%
   facet_wrap(~type) + 
   theme_cowplot()
 
-ggsave(plot = plot_deaths, filename = "death_plot.png", width = 7, height = 4)
 ```
 
 ## Network size histogram 
 
 ```{r}
-kin_denom <- results_ns %>% 
+kin_denom <- survey_df %>% 
   count(num_total_kin) %>% 
   filter(!is.na(num_total_kin)) %>% 
   rename(size = num_total_kin) %>% 
   mutate(type = "Kin degree (mean = 27)")
 
-neighbor_denom <- results_ns %>% 
+neighbor_denom <- survey_df %>% 
   count(num_total_neighbour) %>% 
   filter(!is.na(num_total_neighbour)) %>%
   rename(size = num_total_neighbour) %>% 
@@ -94,13 +100,40 @@ plot_denom <- bind_rows(kin_denom, neighbor_denom) %>%
   facet_wrap(~type) + 
   theme_cowplot()
 
-ggsave(plot = plot_denom, filename = "degree_plot.png", width = 7, height = 4)
+```
+
+```{r}
+combined_plot <- cowplot::plot_grid(plot_deaths, plot_denom, zone_de_sante_plot, labels = "AUTO", nrow = 3)
+
+ggsave(plot = combined_plot, filename = here("figures/combined_plot.png"), height = 12, width = 8)
 ```
 
 
 
 ```{r}
-
+survey_df %>% 
+  select(sex, age_class, zone_de_sante_name) %>% 
+  group_by(zone_de_sante_name) %>% 
+  count(sex, age_class) %>% 
+  mutate(prop = n / sum(n)) %>% 
+  pivot_wider(names_from = "zone_de_sante_name", values_from = "prop")
 ```
 
+```{r}
+# Calculate n and percentages
+table <- survey_df %>%
+  select(sex, age_class, zone_de_sante_name) %>%
+  group_by(zone_de_sante_name, age_class, sex) %>%
+  summarise(n = n()) %>%
+  group_by(zone_de_sante_name) %>%
+  mutate(total = sum(n)) %>%
+  ungroup() %>%
+  mutate(perc = (n / total) * 100) %>%
+  select(-total) %>%
+  pivot_wider(names_from = zone_de_sante_name, values_from = c(n, perc))
+
+# Generate LaTeX table
+latex_code <- xtable(table, caption="Survey Data by Zone de Sante, Age Class, and Sex", label="table:survey")
+print(latex_code, type="latex", caption.placement="top")
+```
 

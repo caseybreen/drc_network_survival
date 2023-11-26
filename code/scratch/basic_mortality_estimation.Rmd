@@ -12,14 +12,14 @@ library(here)
 
 
 ```{r}
-results_ns <- readxl::read_xlsx("~/Downloads/Tool1b_Clean_2023-06-30.xlsx", sheet = "main_networksurvival")
+results_ns <- read_csv(here("data/clean_data/casey_files/weight_survey.csv"))
 ```
 
 ```{r}
 results_ns %>% 
   mutate(diff = interval(as_date("2023-01-01"), start)) %>% 
   mutate(diff = diff %/% days(1)) %>% 
-  select(diff) %>% 
+  dplyr::select(diff) %>% 
   summarize(mean(diff, na.rm = T))
 ```
 
@@ -36,7 +36,7 @@ point_estimate_kin <- results_ns %>%
             total_kin_deaths = sum(num_deaths_kin, na.rm = T)) %>% 
   mutate(avg_kin_connections = total_kin_connections/n, 
          cmr_estimate = (total_kin_deaths/total_kin_connections)*(10000/121.1204)) %>% 
-  select(zone_de_sante_name, month, cmr_estimate)
+  dplyr::select(zone_de_sante_name, month, cmr_estimate)
 
 bootstrap_list <- list()
 
@@ -55,7 +55,7 @@ for (i in 1:1000) {
             total_kin_deaths = sum(num_deaths_kin, na.rm = T)) %>% 
   mutate(avg_kin_connections = total_kin_connections/n, 
          cmr_estimate = (total_kin_deaths/total_kin_connections)*(10000/92.7957)) %>% 
-  select(zone_de_sante_name, month, cmr_estimate) %>% 
+  dplyr::select(zone_de_sante_name, month, cmr_estimate) %>% 
     mutate(sample = i)
 } 
 
@@ -83,7 +83,7 @@ point_estimate_neighbor <- results_ns %>%
             total_neighbor_deaths = sum(num_deaths_neighbours, na.rm = T)) %>% 
   mutate(avg_neighbor_connections = total_neighbor_connections/n, 
          cmr_estimate = (total_neighbor_deaths/total_neighbor_connections)*(10000/92.7957)) %>% 
-  select(zone_de_sante_name, month, cmr_estimate)
+  dplyr::select(zone_de_sante_name, month, cmr_estimate)
 
 bootstrap_list <- list()
 
@@ -102,7 +102,7 @@ for (i in 1:1000) {
             total_neighbor_deaths = sum(num_deaths_neighbours, na.rm = T)) %>% 
     mutate(avg_neighbor_connections = total_neighbor_connections/n, 
            cmr_estimate = (total_neighbor_deaths/total_neighbor_connections)*(10000/92.7957)) %>% 
-  select(zone_de_sante_name, month, cmr_estimate) %>% 
+  dplyr::select(zone_de_sante_name, month, cmr_estimate) %>% 
     mutate(sample = i)
 } 
 

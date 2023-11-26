@@ -1,0 +1,74 @@
+---
+title: "Read in network survey data"
+author: Casey Breen
+---
+
+Summary: Code to read in network survey data. 
+
+Notes:
+
+* date_join_final_death = date of death 
+* death_date_dc = date of interview 
+
+```{r}
+## library packages 
+library(tidyverse)
+library(cowplot)
+library(here)
+
+## read in respondent-level file  
+results_ns <- readxl::read_xlsx(here("data/clean_data/2023-09-08/network_survey_2023-08-16.xlsx"), sheet = "main_networksurvival")
+
+## read in death file  
+deaths <- readxl::read_xlsx(here("data/clean_data/2023-09-08/network_survey_2023-08-16.xlsx"), sheet = "deaths")
+```
+
+## Month of death X month of interview 
+
+```{r}
+## Tabulate deaths by month of interview and month of death 
+report_plot_df <- deaths %>% 
+ # filter(`death_relationship/neighbour` == 1) %>%  ## restrict to sub-population 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
+  mutate(report_month = lubridate::floor_date(x = as_date(death_date_dc), unit = "month")) %>% 
+  filter(report_month != as_date("2023-02-01")) %>% ## filter out February interviews  
+  filter(!is.na(death_month)) 
+
+## Plot distribution of deaths by month of interview 
+report_plot <- report_plot_df %>% 
+  ggplot(., aes(x = as.factor(death_month))) + 
+    geom_bar(position=position_dodge2(.9), fill = "grey", color = "black") +
+    geom_text(stat='count', aes(label=after_stat(count)), vjust = -.5) + 
+      facet_wrap(~report_month, nrow = 4) + 
+      ylim(0, 80) + 
+      cowplot::theme_cowplot() + 
+      labs(x = "Month of Death",
+           title = "Reported Number of Deaths (Panels = Month of Interview)") 
+
+report_plot
+```
+## Month of death X month of interview -- by Zone de Sante 
+
+```{r}
+# Plot distribution of deaths by month of interview
+report_plot_zs <- report_plot_df %>% 
+  mutate(
+    death_zs_full = case_when(
+      death_zs == 746101 ~ "Kalemie",
+      death_zs == 746102 ~ "Nyemba",
+      death_zs == 746601 ~ "Nyunzu",
+      TRUE ~ as.character(death_zs)
+    )) %>% 
+  ggplot(aes(x = as.factor(death_month))) + 
+  geom_bar(position=position_dodge2(.9), fill = "grey", color = "black") +
+  geom_text(stat='count', aes(label=after_stat(count)), vjust = -.5) + 
+  ylim(0, 80) + 
+  cowplot::theme_cowplot() + 
+  labs(x = "Month of Death",
+       title = "Reported Number of Deaths (Panels = Month of Interview)") + 
+  facet_grid(rows = vars(report_month), cols = vars(death_zs_full))
+
+report_plot_zs
+```
+
+

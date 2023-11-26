@@ -1,0 +1,277 @@
+---
+title: "Run code"
+---
+
+
+```{r}
+## library packages 
+library(tidyverse)
+library(data.table)
+library(gt)
+library(here)
+library(cowplot)
+
+## read in data 
+survey_df <- read_csv(here("data/clean_data/casey_files/weight_survey.csv")) %>% 
+  mutate(start_month = lubridate::floor_date(x = as_date(start), unit = "month"))
+
+
+death_df <- read_csv(here("data/clean_data/casey_files/deaths_weighted.csv")) %>% 
+  mutate(uuid_ki = uuid_ki4) %>% 
+  mutate(zone_de_sante_name = case_when(
+      death_zs == 746101 ~ "Kalemie",           
+      death_zs == 746601 ~ "Nyunzu",            
+      death_zs == 746102 ~ "Nyemba")) %>% 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month"))
+
+```
+
+
+```{r}
+calculate_exposure_and_death <- function(death_df, survey_df, type = c("kin", "neighbor"), bootstrap = NA, monthly = FALSE, subpopulation = NULL) {
+  
+  if (!type %in% c("kin", "neighbor")) {
+    stop("Type must be either 'kin' or 'neighbor'")
+  }
+  
+  results_list <- list()
+  
+  if (is.na(bootstrap)) {
+    # No bootstrapping, just run the main code once
+    if (type == "kin") {
+      results_list[[1]] <- estimate_mortality_kin(death_df, survey_df, subpop = subpopulation)
+    } else {
+      results_list[[1]] <- estimate_mortality_neighbor(death_df, survey_df, subpop = subpopulation)
+    }
+  } else {
+    # Run the main code 'bootstrap' times
+    for (i in 1:bootstrap) {
+      
+      boot_survey_df <- survey_df %>% 
+        group_by(zone_de_sante_name, gender, start_month) %>% 
+        sample_n(size = n(), replace = TRUE) %>% 
+        ungroup()
+      
+      # Count and replicate data
+      count_ids <- boot_survey_df %>% 
+        count(uuid_ki) %>% 
+        rename(count_column = n)
+      
+      boot_death_df_final <- death_df %>%
+        inner_join(count_ids, by = "uuid_ki") %>%
+        ungroup() %>%
+        slice(unlist(mapply(rep, 1:n(), count_column)))
+      
+      # Calculate results
+      if (type == "kin") {
+        estimate_func <- if (monthly) estimate_mortality_kin_monthly else estimate_mortality_kin
+      } else {
+        estimate_func <- if (monthly) estimate_mortality_neighbor_monthly else estimate_mortality_neighbor
+      }
+      
+      results_list[[i]] <- estimate_func(survey_df = boot_survey_df, death_df = boot_death_df_final, subpop = subpopulation) %>% 
+        mutate(bootstrap_iter = i)
+      
+      cat(i)
+    }
+  }
+  
+  results_list <- results_list %>%
+    bind_rows() %>% 
+    mutate(type = type)
+  
+  return(results_list %>% bind_rows())
+}
+
+## neighbor 
+calculate_exposure_and_death(death_df = death_df, survey_df = survey_df, type = "neighbor", bootstrap = 10)
+calculate_exposure_and_death(death_df = death_df, survey_df = survey_df, type = "neighbor", bootstrap = 10, subpopulation = "zone_de_sante_name")
+
+## kin 
+calculate_exposure_and_death(death_df = death_df, survey_df = survey_df, type = "kin", bootstrap = 10)
+calculate_exposure_and_death(death_df = death_df, survey_df = survey_df, type = "kin", bootstrap = 10, subpopulation = "zone_de_sante_name")
+
+## neighbor 
+calculate_exposure_and_death(death_df = death_df, survey_df = survey_df, type = "neighbor", bootstrap = 10, monthly = T)
+calculate_exposure_and_death(death_df = death_df, survey_df = survey_df, type = "neighbor", bootstrap = 10, subpopulation = "zone_de_sante_name", monthly = T)
+
+## kin 
+calculate_exposure_and_death(death_df = death_df, survey_df = survey_df, type = "kin", bootstrap = 10, monthly = T)
+calculate_exposure_and_death(death_df = death_df, survey_df = survey_df, type = "kin", bootstrap = 10, subpopulation = "zone_de_sante_name", monthly = T)
+```
+
+
+
+
+```{r}
+overall_estimate <- final_result %>% 
+  mutate(method = type) %>% 
+  group_by(method) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate))
+
+main_estimate_plot <- overall_estimate %>% 
+  ggplot(aes(x = method, color = method, shape = method, y = mean, ymin = lower, ymax = upper)) + 
+  geom_pointrange( position = position_dodge(.1), size = .75, fill = "white") +
+  scale_shape_manual(values = c(21, 23)) +
+  ggsci::scale_color_lancet() + 
+  ylim(0, 1) + 
+  theme_cowplot() + 
+  theme(legend.position = "bottom") + 
+  geom_hline(yintercept = 1, linetype = "dashed") + 
+  labs(x = "Network Tie", y = "Crude Death Rate") 
+
+ggsave(plot = main_estimate_plot, filename = here("figures/main_estimate_plot.png"), width = 6, height = 4)
+```
+
+
+```{r}
+zone_de_sante <- test %>%
+  mutate(method = type) %>% 
+  group_by(zone_de_sante_name, method) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate))
+
+zone_de_sante_plot <- zone_de_sante %>% 
+  ggplot(aes(x = zone_de_sante_name, color = method, shape = method, y = mean, ymin = lower, ymax = upper)) + 
+  geom_pointrange( position = position_dodge(.1), size = .75, fill = "white") +
+  scale_shape_manual(values = c(21, 23)) +
+  ggsci::scale_color_lancet() + 
+  ylim(0, 1) + 
+  theme_cowplot() + 
+  theme(legend.position = "bottom") + 
+  labs(x = "Zone de Sante", y = "Daily Crude Death Rate")
+
+ggsave(plot = zone_de_sante_plot, filename = here("figures/main_plot_zs.png"), width = 6, height = 4)
+```
+
+```{r}
+funcs <- c("calculate_exposure_and_death_neighbor", "calculate_exposure_and_death_kin")
+results_list_monthly <- list()
+
+for (func_name in funcs) {
+  func_to_call <- get(func_name)
+  temp_result <- func_to_call(
+  #    death_df, 
+  #    survey_df, 
+  filter(death_df, zone_de_sante_name != "Nyunzu"),
+  filter(survey_df, zone_de_sante_name != "Nyunzu"),
+    bootstrap = 100,
+    monthly = T
+  )
+  
+  # Determine the type based on the function name and add as a new column
+  temp_result <- temp_result %>%
+    bind_rows() %>% 
+    mutate(type = if_else(str_detect(func_name, "neighbor"), "neighbor", "kin"),
+           zone_de_sante_name = zone)
+  
+  results_list_monthly[[length(results_list_monthly) + 1]] <- temp_result 
+}
+
+
+results_monthly_df <- bind_rows(results_list_monthly)
+
+results_monthly_df <- results_monthly_df %>% 
+  filter(!is.na(death_rate)) %>% 
+  mutate(method = type) %>% 
+  group_by(zone_de_sante_name, method, month) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate))
+
+results_monthly_df %>% 
+  filter(month != as_date("2023-06-01")) %>% 
+  ggplot(aes(x = month, color = method, shape = method, y = mean, ymin = lower, ymax = upper)) + 
+  geom_pointrange( position = position_dodge(5), size = .75, fill = "white") +
+  geom_line(linetype = "dashed", alpha = 0.3) + 
+  scale_shape_manual(values = c(21, 23)) +
+  ggsci::scale_color_lancet() + 
+  # geom_hline(yintercept = 1, linetype = "dashed") + 
+  theme_cowplot() + 
+  ylim(0, 1) + 
+  theme(legend.position = "bottom") + 
+  labs(x = "Month of Death", y = "Crude Death Rate") 
+
+results_monthly_df %>% 
+  filter(month != as_date("2023-06-01")) %>% 
+  ggplot(aes(x = month, y = mean, color = method, fill = method)) + 
+  geom_line(linetype = "dashed", alpha = 0.3) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, position = position_dodge(5)) +
+  scale_shape_manual(values = c(21, 23)) +
+  ggsci::scale_color_lancet() +
+  theme_cowplot() + 
+  ylim(0, 1) +
+  theme(legend.position = "bottom") +
+  labs(x = "Month of Death", y = "Crude Death Rate")
+
+results_monthly_df %>% 
+  filter(month != as_date("2023-06-01")) %>% 
+  ggplot(aes(x = month, y = mean, color = method)) + 
+  geom_line(linetype = "dashed", alpha = 0.3) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, position = position_dodge(5)) +
+  facet_wrap(~method, scales = "free_y") +
+  ggsci::scale_color_lancet() +
+  theme_cowplot() +
+  ylim(0, 1)
+  labs(x = "Month of Death", y = "Crude Death Rate")
+```
+
+
+
+
+```{r}
+funcs <- c("calculate_exposure_and_death_neighbor", "calculate_exposure_and_death_kin")
+zones <- c("Nyemba", "Nyunzu", "Kalemie")
+results_list_zs_monthly <- list()
+
+for (zone in zones) {
+  for (func_name in funcs) {
+    func_to_call <- get(func_name)
+    temp_result <- func_to_call(
+      filter(death_df, zone_de_sante_name == zone),
+      filter(survey_df, zone_de_sante_name == zone),
+      bootstrap = 100,
+      monthly = T
+    )
+
+    # Determine the type based on the function name and add as a new column
+    temp_result <- temp_result %>%
+          bind_rows() %>% 
+      mutate(type = if_else(str_detect(func_name, "neighbor"), "neighbor", "kin"),
+             zone_de_sante_name = zone)
+
+    results_list_zs_monthly[[length(results_list_zs_monthly) + 1]] <- temp_result 
+  }
+}
+
+zone_de_sante_monthly <- bind_rows(results_list_zs_monthly)
+
+
+zone_de_sante_monthly <- final_result_zs %>% 
+  filter(!is.na(death_rate)) %>% 
+  mutate(method = type) %>% 
+  group_by(zone_de_sante_name, method, month) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate))
+
+
+zone_de_sante %>% 
+  filter(month != as_date("2023-06-01")) %>% 
+  ggplot(aes(x = month, color = method, shape = method, y = mean, ymin = lower, ymax = upper)) + 
+  geom_pointrange( position = position_dodge(5), size = .75, fill = "white") +
+  geom_line(linetype = "dashed", alpha = 0.3) + 
+  scale_shape_manual(values = c(21, 23)) +
+  ggsci::scale_color_lancet() + 
+  ylim(0, 1.5) + 
+  # geom_hline(yintercept = 1, linetype = "dashed") + 
+  theme_cowplot() + 
+  theme(legend.position = "bottom") + 
+  labs(x = "Month of Death", y = "Crude Death Rate") + 
+  facet_wrap(~zone_de_sante_name)
+```
+
+
