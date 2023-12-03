@@ -1,0 +1,278 @@
+---
+title: "Estiamte mortality rates"
+---
+
+Summarize: Estimate mortality rates 
+
+```{r}
+## library packages 
+library(tidyverse)
+library(data.table)
+library(gt)
+library(here)
+library(cowplot)
+source(here("code/helpers.R"))
+
+## read in survey df
+survey_df <- read_csv(here("data/clean_data/survey_df_cleaned_weighted_dec3_2023.csv")) %>% 
+  filter(zone_de_sante_name != "Nyunzu")
+
+## read in death df 
+death_df <- read_csv(here("data/clean_data/death_df_cleaned_weighted_dec3_2023.csv")) %>% 
+  filter(zone_de_sante_name != "Nyunzu")
+```
+
+
+
+
+```{r}
+## poststrat weights estimates 
+estimates_point_poststrat <- networksurvival::estimate_death_rate(death_df = death_df,
+                                                                  survey_df = survey_df,
+                                                                  weight_col = "weight_poststrat") %>% 
+  mutate(weights = "poststrat")
+
+## poststrat weights estimates 
+estimates_uncertainty_poststrat <- networksurvival::estimate_death_rate(death_df = death_df,
+                                                                        survey_df = survey_df,
+                                                                        weight_col = "weight_poststrat", bootstrap = 1000) %>% 
+  mutate(weights = "poststrat")
+
+
+## raking weights estimates 
+estimates_point_raking <- networksurvival::estimate_death_rate(death_df = death_df,
+                                                               survey_df = survey_df,
+                                                               weight_col = "weight_raking") %>% 
+  mutate(weights = "raking")
+
+
+## raking weights estimates 
+estimates_uncertainty_raking <- networksurvival::estimate_death_rate(death_df = death_df,
+                                                                     survey_df = survey_df,
+                                                                     weight_col = "weight_raking", bootstrap = 1000) %>% 
+  mutate(weights = "raking")
+```
+
+
+
+## Main Estimate 
+
+```{r}
+# Combine estimates
+point_estimate <- rbind(estimates_point_poststrat, estimates_point_raking) 
+
+## point estimates 
+point_estimate <- point_estimate %>% 
+  bind_rows(point_estimate %>% 
+              filter(weights == "poststrat") %>% 
+              mutate(death_rate = death_rate_unweighted,
+                     weights = "unweighted"))
+
+
+## main estimate uncertainty 
+main_estimate_uncertainty <- rbind(estimates_uncertainty_poststrat, estimates_uncertainty_raking)
+
+## uncertainty estimates 
+uncertainty_estimates <- main_estimate_uncertainty %>% 
+  group_by(type, weights) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate)) %>% 
+  bind_rows(main_estimate_uncertainty %>% 
+  filter(weights == "poststrat") %>% 
+  group_by(type, weights) %>% 
+  summarize(lower = quantile(death_rate_unweighted, 0.025),
+            upper = quantile(death_rate_unweighted, 0.975),
+            mean = mean(death_rate_unweighted)) %>% 
+  mutate(weights = "unweighted"))
+
+overall_estimate <- inner_join(point_estimate, uncertainty_estimates, by = c("weights", "type"))
+
+# Plotting
+overall_estimate <- overall_estimate %>% 
+  ggplot(aes(x = type, color = weights, y = death_rate, shape = weights, ymin = lower, ymax = upper)) + 
+  geom_pointrange(position = position_dodge(.2), size = .75, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23)) +
+  ggsci::scale_color_lancet() + 
+  ylim(0, 1) + 
+  theme_cowplot() + 
+  theme(legend.position = "bottom") + 
+  geom_hline(yintercept = 1, linetype = "dashed") + 
+  labs(x = "Network Tie", y = "Crude Death Rate")
+
+ggsave(plot = main_estimate_plot, filename = here("figures/main_estimate_plot.png"), width = 4, height = 4)
+```
+
+
+```{r}
+main_estimate_zs <- networksurvival::estimate_death_rate(death_df = death_df, survey_df = survey_df, weight_col = "weight_poststrat", subpopulation = "zone_de_sante_name", bootstrap = 1000)
+
+## zone de sante 
+zone_de_sante <- main_estimate_zs %>% 
+  mutate(method = type) %>% 
+  group_by(zone_de_sante_name, method) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate))
+
+# Calculate the average death rate for kin and neighbor for each bootstrap iteration
+average_death_rates <- main_estimate_zs %>%
+  group_by(zone_de_sante_name, bootstrap_iter) %>% 
+  summarize(death_rate = mean(death_rate, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  group_by(zone_de_sante_name) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate)) %>% 
+  mutate(method = "blended")
+
+
+zone_de_sante_plot <- zone_de_sante %>% 
+    bind_rows(average_death_rates) %>% 
+  ggplot(aes(x = zone_de_sante_name, color = method, shape = method, y = mean, ymin = lower, ymax = upper)) + 
+  geom_pointrange( position = position_dodge(.1), size = .75, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23)) +
+  ggsci::scale_color_lancet() + 
+  ylim(0, 1) + 
+  theme_cowplot() + 
+  theme(legend.position = "bottom") + 
+  labs(x = "Zone de Sante", y = "Daily Crude Death Rate")
+
+ggsave(plot = zone_de_sante_plot, filename = here("figures/main_plot_zs.png"), width = 6, height = 4)
+```
+
+## zone de sante monthly 
+
+```{r}
+## main estimates 
+main_estimate_monthly <- calculate_exposure_and_death(death_df = death_df, survey_df = survey_df, bootstrap = 1000, monthly = T)
+
+## zone de sante 
+main_estimate_monthly_df <- main_estimate_monthly %>% 
+  mutate(method = type) %>% 
+  group_by(month, method) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate))
+
+# Calculate the average death rate for kin and neighbor for each bootstrap iteration
+main_estimate_monthly_blended_df <- main_estimate_monthly %>%
+    group_by(month, bootstrap_iter) %>% 
+  summarize(death_rate = mean(death_rate, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  group_by(month) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate)) %>% 
+  mutate(method = "blended")
+
+
+main_estimate_monthly_df %>% 
+  bind_rows(main_estimate_monthly_blended_df) %>% 
+  filter(month != as_date("2023-06-01")) %>% 
+  ggplot(aes(x = month, color = method, shape = method, y = mean, ymin = lower, ymax = upper)) + 
+  geom_pointrange( position = position_dodge(5), size = .75, fill = "white") +
+  geom_line(linetype = "dashed", alpha = 0.3) + 
+  scale_shape_manual(values = c(21, 22, 23)) +
+  ggsci::scale_color_lancet() + 
+  # geom_hline(yintercept = 1, linetype = "dashed") + 
+  theme_cowplot() + 
+  ylim(0, 1) + 
+  theme(legend.position = "bottom") + 
+  labs(x = "Month of Death", y = "Crude Death Rate") 
+
+main_plot_monthly <-  main_estimate_monthly_df %>% 
+  bind_rows(main_estimate_monthly_blended_df) %>% 
+  filter(month != as_date("2023-06-01")) %>% 
+  ggplot(aes(x = month, y = mean, color = method, fill = method)) + 
+  geom_line(linetype = "dashed", alpha = 0.3) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, position = position_dodge(5)) +
+  scale_shape_manual(values = c(21, 22, 23)) +
+  ggsci::scale_color_lancet() +
+  theme_cowplot() + 
+  ylim(0, 1) +
+  theme(legend.position = "bottom") +
+  labs(x = "Month of Death", y = "Crude Death Rate")
+
+ggsave(plot = main_plot_monthly, filename = here("figures/main_plot_monthly.png"), width = 6, height = 4)
+```
+
+
+```{r}
+## main estimates 
+main_estimate_monthly_zs <- calculate_exposure_and_death(death_df = death_df, survey_df = survey_df, bootstrap = 1000, monthly = T, subpopulation = "zone_de_sante_name")
+
+## estimates monthly 
+results_monthly_df_zs_monthly_sum <-main_estimate_monthly_zs %>% 
+  filter(!is.na(death_rate)) %>% 
+  mutate(method = type) %>% 
+  group_by(zone_de_sante_name, method, month) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate))
+
+## results monthly df 
+main_plot_monthly_zs <- results_monthly_df_zs_monthly %>% 
+  bind_rows(main_estimate_monthly_blended_sum) %>% 
+ filter(month != as_date("2023-06-01")) %>% 
+  ggplot(aes(x = month, color = method, shape = method, y = mean, ymin = lower, ymax = upper)) + 
+  geom_pointrange( position = position_dodge(5), size = .75, fill = "white") +
+  geom_line(linetype = "dashed", alpha = 0.3) + 
+  scale_shape_manual(values = c(21, 22, 23)) +
+  ggsci::scale_color_lancet() + 
+  # geom_hline(yintercept = 1, linetype = "dashed") + 
+  theme_cowplot() + 
+  ylim(0, 1.3) + 
+  theme(legend.position = "bottom") + 
+  labs(x = "Month of Death", y = "Crude Death Rate") + 
+  facet_wrap(~zone_de_sante_name, ncol = 1)
+
+ggsave(plot = main_plot_monthly_zs, filename = here("figures/main_plot_zs_monthly.png"), width = 6, height = 8)
+```
+
+## Pooled vs. monthly pooled estimates 
+
+```{r}
+main_estimate_monthly <- calculate_exposure_and_death(death_df = death_df, survey_df = survey_df, bootstrap = 1000, monthly = T)
+
+estimate_monthly <- main_estimate_monthly %>% 
+  group_by(bootstrap_iter, type) %>% 
+  summarize(death_rate = mean(death_rate, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  group_by(type) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate)) %>% 
+  mutate(method = "monthly")
+
+main_estimate_uncertainty <- calculate_exposure_and_death(death_df = death_df, survey_df = survey_df, bootstrap = 1000, month = F)
+
+estimate_pooled <-  main_estimate_uncertainty %>% 
+  group_by(bootstrap_iter, type) %>% 
+  summarize(death_rate = mean(death_rate, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  group_by(type) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate)) %>% 
+  mutate(method = "pooled") 
+
+combined_estimates <- bind_rows(estimate_monthly, estimate_pooled)
+
+pooled_vs_monthly_comparison_plot <- combined_estimates %>% 
+  ggplot(aes(x = type, y = mean, ymin = lower, ymax = upper, color = method, shape = method)) + 
+  geom_pointrange(position = position_dodge(.2), size = .75, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23)) +
+  ggsci::scale_color_lancet() + 
+  ylim(0, 1) + 
+  theme_cowplot() + 
+  theme(legend.position = "bottom") + 
+  labs(x = "Zone de Sante", y = "Daily Crude Death Rate") + 
+  labs(title = "Estimates, Pooled vs. Monthly Estimates" )
+
+
+ggsave(plot = pooled_vs_monthly_comparison_plot, filename = here("figures/main_plot_pooled_vs_monthly_comparison_plot.png"), width = 6, height = 4)
+
+```
+
+

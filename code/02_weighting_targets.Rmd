@@ -1,0 +1,148 @@
+---
+title: "Construct weight"
+author: Casey Breen
+---
+
+Summary: construct weighting targets 
+
+```{r}
+## packages 
+library(tidyverse)
+library(sf)
+library(raster)
+library(exactextractr)
+library(here)
+library(autumn)
+library(cowplot)
+```
+
+## Identify geographic regions 
+
+```{r}
+## read in shapefile 
+shapefile <- sf::read_sf(here("data/weighting/geography/rdc_zones-de-sante"))
+
+nyemba_shapefile <- shapefile %>% 
+  filter(PROVINCE == "Tanganyika" & Nom == "Nyemba")
+
+kalemie_shapefile <- shapefile %>% 
+  filter(PROVINCE == "Tanganyika" & Nom == "Kalemie")
+
+nyunzu_shapefile <- shapefile %>% 
+  filter(PROVINCE == "Tanganyika" & Nom == "Nyunzu")
+```
+
+
+```{r}
+## Read in drc shapefiles 
+drc_shapefiles <- sf::read_sf(here("data/weighting/geography/rdc_aires-de-sante"))
+
+# Filter to aires-de-santes in Tanganyika
+tanganyika_shapefiles <- drc_shapefiles %>% 
+  filter(Province == "Tanganyika")
+
+# Create a new variable to identify whether each ZS should be colored or grayed out
+tanganyika_shapefiles <- tanganyika_shapefiles %>% 
+  mutate(color_group = if_else(ZS %in% c("Kalemie", "Nyemba", "Nyunzu"), as.character(ZS), "Other"))
+```
+
+
+```{r}
+# List all .tif files in the folder
+## doi:10.1038/sdata.2017.89 
+tif_files <- list.files(here("data/weighting/geography/world_pop_rasters/"), pattern = "\\.tif$", full.names = TRUE)
+
+# List of shapefiles
+shapefiles <- list(
+  Kalemie = kalemie_shapefile,
+  Nyunzu = nyunzu_shapefile,
+  Nyemba = nyemba_shapefile
+)
+
+# Initialize an empty list to store results
+results_list <- list()
+
+# Loop over each .tif file
+for (tif_file in tif_files) {
+  imported_raster <- raster(tif_file)
+  
+  # Loop over each shapefile
+  for (zone in names(shapefiles)) {
+    shape <- shapefiles[[zone]]
+    result <- exactextractr::exact_extract(imported_raster, shape, 'sum')
+    
+    # Extract gender and number from file name
+    file_base_name <- basename(tif_file)
+    gender <- str_extract(file_base_name, "_[mf]_")
+    gender <- gsub("_", "", gender)
+    number <- str_extract(file_base_name, "_\\d+_")
+    number <- as.numeric(gsub("_", "", number))
+    
+    # Add to the list
+    new_row <- data.frame(
+      file_name = file_base_name,
+      gender = gender,
+      number = number,
+      sum_value = sum(unlist(result)),
+      zone_de_sante = zone
+    )
+    results_list[[length(results_list) + 1]] <- new_row
+  }
+}
+
+# Combine all the data frames in the list into one data frame
+weighting_targets <- bind_rows(results_list)
+
+## combine weighting classes
+weighting_targets <- weighting_targets %>% 
+  mutate(age_class = case_when(
+   number %in% c(15) ~ "[15,20)",
+   number %in% c(20) ~ "[20,25)",
+   number %in% c(25, 30) ~ "[25,35)",
+   number %in% c(35, 40) ~ "[35,45)",
+   number %in% c(45, 50) ~ "[45,55)",
+   number %in% c(55, 60) ~ "[55,65)",
+   number %in% c(65, 70, 75, 80) ~ "[65,100]"
+  )) %>% 
+  filter(!is.na(age_class)) %>% 
+  mutate(age_gender = paste0(gender, " | ", age_class))
+
+
+```
+
+## estimate weights for 18-25
+
+```{r}
+# Assuming 'df' is your data frame
+# First, filter for relevant age groups and adjust the population for 15-20 age group
+adjusted_df <- weighting_targets %>%
+  filter(number %in% c(15, 20)) %>%
+  mutate(adjusted_sum_value = if_else(number == 15, sum_value * 2/5, sum_value))
+
+# Now, create the new 18-25 age category
+age_category_18_25 <- adjusted_df %>%
+ # mutate(age_class = if_else(number %in% c(15, 20), "[18,25)", age_class)) %>%
+  group_by(gender, zone_de_sante) %>%
+  summarise(sum_value = sum(adjusted_sum_value)) %>%
+  ungroup() %>% 
+  mutate(age_class = "[18,25)")
+
+# View the result
+age_category_18_25 <- age_category_18_25 %>% 
+  mutate(age_gender = paste0(gender, " | ", age_class))
+```
+```{r}
+weighting_targets <- weighting_targets %>% 
+  filter(!number %in% c(15,20)) %>% 
+  bind_rows(age_category_18_25)
+```
+
+
+
+## save weighting targets 
+
+```{r}
+## write out csv file 
+write_csv(weighting_targets, here("data/weighting/weighting_targets.csv"))
+```
+

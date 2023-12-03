@@ -27,77 +27,83 @@ library(data.table)
 ```
 
 ```{r}
-## filter out health professional 
-formative_survey <- formative_survey %>% 
+## filter out health professional
+formative_survey <- formative_survey %>%
   filter(job != "Professionnel de la santé" & deaths_3month <= 5)
 ```
 
 ```{r}
-## estimate from formative survey 
-formative_survey %>% 
-  summarize(total_deaths = mean(deaths_3month), total_network = mean(network_talk_weekly)) %>% 
-  mutate(rate = total_deaths / total_network,
-         rate_daily =  total_deaths / total_network / 90 * 10000) 
-
+## estimate from formative survey
+formative_survey %>%
+  summarize(total_deaths = mean(deaths_3month), total_network = mean(network_talk_weekly)) %>%
+  mutate(
+    rate = total_deaths / total_network,
+    rate_daily = total_deaths / total_network / 90 * 10000
+  )
 ```
 
 ```{r}
-## sample size calculations with bootstrap 
+## sample size calculations with bootstrap
 interval_list <- list()
 
 for (sample in seq(100, 1000, by = 100)) {
+  resample <- list()
 
-resample <- list()
+  for (i in 1:1000) {
+    resample[[i]] <- formative_survey %>%
+      sample_n(replace = T, size = sample) %>%
+      summarize(
+        num = mean(deaths_3month, na.rm = T),
+        denom = mean(network_talk_weekly, na.rm = T)
+      ) %>%
+      mutate(estimate = num / denom)
+  }
 
-for (i in 1:1000) {
-resample[[i]] <- formative_survey %>% 
-  sample_n(replace = T, size = sample) %>% 
-  summarize(num = mean(deaths_3month, na.rm = T),
-            denom = mean(network_talk_weekly, na.rm = T)) %>% 
-  mutate(estimate = num / denom) 
+  interval_list[[sample]] <- bind_rows(resample) %>%
+    mutate(estimate_emergency = estimate / 90 * 10000) %>%
+    summarize(
+      lower = quantile(estimate_emergency, 0.025),
+      upper = quantile(estimate_emergency, 0.975),
+      mean = mean(estimate_emergency)
+    ) %>%
+    mutate(sample_size = sample)
+
+  cat(sample)
 }
 
-interval_list[[sample]] <- bind_rows(resample) %>% 
-  mutate(estimate_emergency = estimate / 90 * 10000) %>% 
-  summarize(lower = quantile(estimate_emergency, 0.025),
-            upper = quantile(estimate_emergency, 0.975),
-            mean = mean(estimate_emergency)) %>% 
-  mutate(sample_size = sample)
-
-cat(sample)
-} 
-
-intervals_sample_size <- bind_rows(interval_list) 
+intervals_sample_size <- bind_rows(interval_list)
 ```
 
 ```{intervals_sample_size}
 ```
 
 ```{r}
-## calculate intervals 
+## calculate intervals
 sample_sizes <- seq(100, 1000, by = 100)
-e0_analytic_calc = sqrt(1.96^2 * 2.7/100/(sample_sizes * 50)) * 100
+e0_analytic_calc <- sqrt(1.96^2 * 2.7 / 100 / (sample_sizes * 50)) * 100
 
-## sample size calculations 
-intervals_sample_size <- intervals_sample_size %>% 
-  mutate(e0 = (upper - lower)/2) %>% 
+## sample size calculations
+intervals_sample_size <- intervals_sample_size %>%
+  mutate(e0 = (upper - lower) / 2) %>%
   mutate(e0_analytic = e0_analytic_calc)
 
-intervals_sample_size_long <- intervals_sample_size %>% 
-  select(sample_size, e0, e0_analytic) %>% 
+intervals_sample_size_long <- intervals_sample_size %>%
+  select(sample_size, e0, e0_analytic) %>%
   pivot_longer(-sample_size)
 
-## sample size intervals 
-intervals_sample_size_long %>% 
-  ggplot() + 
-  geom_line(aes(x = sample_size, value, color = name), size = 1.3) + 
-  cowplot::theme_cowplot() + 
-  ylim(0, 1) + 
-  ggsci::scale_color_lancet() + 
-  theme(legend.position = "bottom") + 
-  labs(x = "Sample Size",
-       y = "Margin of Error",
-       title = "Sample Sample Calculations")
+## sample size intervals
+intervals_sample_size_long %>%
+  ggplot() +
+  geom_line(aes(x = sample_size, value, color = name), size = 1.3) +
+  cowplot::theme_cowplot() +
+  ylim(0, 1) +
+  ggsci::scale_color_lancet() +
+  theme(legend.position = "bottom") +
+  labs(
+    x = "Sample Size",
+    y = "Margin of Error",
+    title = "Sample Sample Calculations"
+  )
 ```
 
 ## Minimum detectable effect size
@@ -111,19 +117,19 @@ Goal: produce an estimate for a 3-month period with a standard error small enoug
 For the household survey, we will calculate estimated level of precision at household level.
 
 ```{r}
-## parameters for mortality estimation study 
-households = 1074
-members_per_household = 5.5
-N = households * members_per_household
-p = 0.87/100 ## convert to a rate per 100 
-design_effect = 1.5
+## parameters for mortality estimation study
+households <- 1074
+members_per_household <- 5.5
+N <- households * members_per_household
+p <- 0.87 / 100 ## convert to a rate per 100
+design_effect <- 1.5
 
-## calculate variante 
-variance = ((1 - p)*(p))/N * design_effect
-sd = sqrt(variance)
+## calculate variante
+variance <- ((1 - p) * (p)) / N * design_effect
+sd <- sqrt(variance)
 
-## estimate 95% CI 
-c(p -1.96*sd, p + 1.96*sd) * 100
+## estimate 95% CI
+c(p - 1.96 * sd, p + 1.96 * sd) * 100
 ```
 
 ```{r}

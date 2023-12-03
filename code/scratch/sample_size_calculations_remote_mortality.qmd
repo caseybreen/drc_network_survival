@@ -85,49 +85,49 @@ This allows us to use the MDE equation above to estimate mortality. Here, we ass
 In one health zone, what is the sample size required to detect a minimum difference of 0.4 in the estimated mortality rate (in deaths / day / 10,000) between our household and the network survival study, over a 3 month observation window?
 
 ```{r, message=FALSE}
-
 ## library
 library(tidyverse)
 library(data.table)
 
-## assumptions 
-alpha = 0.975                                  ## Precision
-beta = 0.1                                     ## Power = 1 - beta
-nsm_sample <- seq(50, 1000, by = 50)           ## network survival method sample size 
-nsm_de <- 1.5                                  ## network survival method design effect 
-hh_de <- 1.5                                   ## household design effect 
-nsm_network <- 50                              ## network survival method 
-mrate <- 0.87                                  ## mortality rate (deaths / day / 10,000)
-time_window <- 90                              ## time window 
-lambda <- 0.4                                  ## difference between HH and NSM surveys
-lambda_converted <- lambda * time_window/10000 ## convert lambda to correct scale 
-mr_porportion <- mrate * time_window/10000     ## proportion of sample dying 
+## assumptions
+alpha <- 0.975 ## Precision
+beta <- 0.1 ## Power = 1 - beta
+nsm_sample <- seq(50, 1000, by = 50) ## network survival method sample size
+nsm_de <- 1.5 ## network survival method design effect
+hh_de <- 1.5 ## household design effect
+nsm_network <- 50 ## network survival method
+mrate <- 0.87 ## mortality rate (deaths / day / 10,000)
+time_window <- 90 ## time window
+lambda <- 0.4 ## difference between HH and NSM surveys
+lambda_converted <- lambda * time_window / 10000 ## convert lambda to correct scale
+mr_porportion <- mrate * time_window / 10000 ## proportion of sample dying
 
-## estimate mde 
+## estimate mde
 ## assume for simplicity difference is 0.4
-mde <- sqrt(mr_porportion * ((nsm_de/(nsm_network * nsm_sample)) + (hh_de/(1074*5.5)) +
-       0.4/(mr_porportion*nsm_sample*nsm_network)) * (qnorm(0.975) * qnorm( 1-beta)))
+mde <- sqrt(mr_porportion * ((nsm_de / (nsm_network * nsm_sample)) + (hh_de / (1074 * 5.5)) +
+  0.4 / (mr_porportion * nsm_sample * nsm_network)) * (qnorm(0.975) * qnorm(1 - beta)))
 
-## recalculate with more exact lambda values (mde) 
-mde <- sqrt(mr_porportion * ((nsm_de/(nsm_network * nsm_sample)) + (hh_de/(1074*5.5)) 
-       + mde/(mr_porportion*nsm_sample*nsm_network)) * (qnorm(0.975) * qnorm( 1-beta)))
+## recalculate with more exact lambda values (mde)
+mde <- sqrt(mr_porportion * ((nsm_de / (nsm_network * nsm_sample)) + (hh_de / (1074 * 5.5))
+  + mde / (mr_porportion * nsm_sample * nsm_network)) * (qnorm(0.975) * qnorm(1 - beta)))
 
 ## convert back to deaths/day/10000
-mde_convert <- mde * 10000/time_window
+mde_convert <- mde * 10000 / time_window
 
-## visualize 
-tibble(nsm_sample, mde_convert) %>%  
-  ggplot(aes(x = nsm_sample, y = mde_convert)) + 
-  geom_point(size = 2.5) + 
-  geom_line(size = 1) + 
-  scale_y_continuous(limits = c(0, 1), n.breaks = 8) + 
-  geom_vline(xintercept = 163, linetype = "dashed", size = 1, color = "blue") + 
-  labs(x = "Sample Size (Network Survival Method)",
-       y = "Minimum Detectable Effect \n (deaths / day / 10,000)",
-       title = "Network Survival vs. Household Survey: Sample Size",
-       subtitle = "Minimum Detectable Effect over 3-month period") + 
+## visualize
+tibble(nsm_sample, mde_convert) %>%
+  ggplot(aes(x = nsm_sample, y = mde_convert)) +
+  geom_point(size = 2.5) +
+  geom_line(size = 1) +
+  scale_y_continuous(limits = c(0, 1), n.breaks = 8) +
+  geom_vline(xintercept = 163, linetype = "dashed", size = 1, color = "blue") +
+  labs(
+    x = "Sample Size (Network Survival Method)",
+    y = "Minimum Detectable Effect \n (deaths / day / 10,000)",
+    title = "Network Survival vs. Household Survey: Sample Size",
+    subtitle = "Minimum Detectable Effect over 3-month period"
+  ) +
   cowplot::theme_cowplot()
-
 ```
 
 We will need a sample size of of approximately N = 163 to detect a minimum effect of 0.4 over 3 month period between the network survival estimate and the household survey estimate (N = 1,074, household size = 5.5).
@@ -137,36 +137,38 @@ We will need a sample size of of approximately N = 163 to detect a minimum effec
 In one health zone, what is the sample size required to detect a minimum effect of 0.4 for the estimated mortality rate (in deaths / day / 10,000) between to network survival method samples?
 
 ```{r}
-## assumptions 
-alpha <- 0.975                                ## Precision
-beta <- 0.1                                   ## Power = 1 - beta
-nsm_sample <- seq(50, 1000, by = 50)          ## network survival method sample size 
-nsm_de <- 1.5                                 ## network survival method design effect 
-nsm_network <- 20                             ## network survival method 
-mrate <- 0.87                                  ## mortality rate (deaths / day / 10,000)
-time_window <- 90                             ## time window 
-mr_porportion <- mrate * time_window/10000    ## proportion of sample dying 
+## assumptions
+alpha <- 0.975 ## Precision
+beta <- 0.1 ## Power = 1 - beta
+nsm_sample <- seq(50, 1000, by = 50) ## network survival method sample size
+nsm_de <- 1.5 ## network survival method design effect
+nsm_network <- 20 ## network survival method
+mrate <- 0.87 ## mortality rate (deaths / day / 10,000)
+time_window <- 90 ## time window
+mr_porportion <- mrate * time_window / 10000 ## proportion of sample dying
 
-## estimate mde 
-mde <- sqrt(mr_porportion* ((nsm_de/(nsm_network * nsm_sample)) + (nsm_de/(nsm_network * nsm_sample)) + lambda_converted/(mr_porportion*nsm_sample*nsm_network)) * (qnorm(0.975) * qnorm( 1-beta)))
+## estimate mde
+mde <- sqrt(mr_porportion * ((nsm_de / (nsm_network * nsm_sample)) + (nsm_de / (nsm_network * nsm_sample)) + lambda_converted / (mr_porportion * nsm_sample * nsm_network)) * (qnorm(0.975) * qnorm(1 - beta)))
 
-## recalculate with more exact lambda values (mde) 
-mde <- sqrt(mr_porportion* ((nsm_de/(nsm_network * nsm_sample)) + (nsm_de/(nsm_network * nsm_sample)) + mde/(mr_porportion*nsm_sample*nsm_network)) * (qnorm(0.975) * qnorm( 1-beta)))
+## recalculate with more exact lambda values (mde)
+mde <- sqrt(mr_porportion * ((nsm_de / (nsm_network * nsm_sample)) + (nsm_de / (nsm_network * nsm_sample)) + mde / (mr_porportion * nsm_sample * nsm_network)) * (qnorm(0.975) * qnorm(1 - beta)))
 
 ## convert back to deaths/day/10000
-mde_convert <- mde * 10000/time_window
+mde_convert <- mde * 10000 / time_window
 
-## visualize 
-tibble(nsm_sample, mde_convert) %>% 
-  ggplot(aes(x = nsm_sample, y = mde_convert)) + 
-  geom_point(size = 2.5) + 
-  geom_line(size = 1) + 
-  scale_y_continuous(limits = c(0, 1), n.breaks = 10 ) + 
-  geom_vline(xintercept = 189, linetype = "dashed", size = 1, color = "blue") + 
-  labs(x = "Sample Size (Network Survival Method)",
-       y = "Minimum Detectable Effect \n (deaths / day / 10,000)",
-       title = "Network Survival vs. Network Survival Sample Size",
-       subtitle = "Minimum Detectable Effect between a 3-month period") + 
+## visualize
+tibble(nsm_sample, mde_convert) %>%
+  ggplot(aes(x = nsm_sample, y = mde_convert)) +
+  geom_point(size = 2.5) +
+  geom_line(size = 1) +
+  scale_y_continuous(limits = c(0, 1), n.breaks = 10) +
+  geom_vline(xintercept = 189, linetype = "dashed", size = 1, color = "blue") +
+  labs(
+    x = "Sample Size (Network Survival Method)",
+    y = "Minimum Detectable Effect \n (deaths / day / 10,000)",
+    title = "Network Survival vs. Network Survival Sample Size",
+    subtitle = "Minimum Detectable Effect between a 3-month period"
+  ) +
   cowplot::theme_cowplot()
 ```
 
