@@ -36,7 +36,7 @@ estimate_mortality_neighbor <- function(death_df, survey_df, weight_col = "weigh
   # Calculate exposure for neighbors
   exposure_hh_neighbors <- survey_df %>%
     mutate(
-      exposure = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_hh_neighbour * survey_df[[weight_col]],
+      exposure = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_hh_neighbour * .data[[weight_col]], # * !!rlang::sym(weight_col)
       exposure_unweighted = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_hh_neighbour
     ) %>%
     summarize(

@@ -73,7 +73,7 @@ estimate_mortality_kin_monthly <- function(death_df, survey_df, weight_col = "we
 
   # Combine weighted and unweighted exposures
   exposure_kin_long <- exposure_kin_long %>%
-    inner_join(exposure_kin_long_unweighted, by = c("subpop", "month"))
+    inner_join(exposure_kin_long_unweighted, by = c(subpop, "month"))
 
   # Calculate death counts
   death_count <- death_df %>%

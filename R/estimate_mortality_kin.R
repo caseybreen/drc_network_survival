@@ -34,7 +34,7 @@ estimate_mortality_kin <- function(death_df, survey_df, weight_col = "weights", 
       exposure_unweighted = sum(exposure_unweighted, na.rm = TRUE)
     )
 
-  # Count deaths
+  # calculate deaths
   death_count <- death_df %>%
     filter(`death_relationship/neighbour` == 0) %>%
     summarize(n = sum(.data[[weight_col]]), n_unweighted = n())

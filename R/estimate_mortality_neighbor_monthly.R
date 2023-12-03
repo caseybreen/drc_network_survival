@@ -31,31 +31,50 @@ estimate_mortality_neighbor_monthly <- function(death_df, survey_df, weight_col 
     }
   }
 
+  # Calculate exposure for kin
+  calculate_exposure <- function(start_date, end_date) {
+    sum(pmax(0, pmin(as_date(end_date), as_date(survey_df$start)) - as_date(start_date)) * survey_df$num_total_hh_neighbour * survey_df[[weight_col]], na.rm = TRUE)
+  }
+
   # Exposure Neighbor
   exposure_neighbor <- survey_df %>%
     summarize(
-      across(`2023-01-01`:`2023-06-01`, ~ sum(pmax(0, pmin(as_date(ymd(.x) %m+% months(1)), as_date(start)) - as_date(ymd(.x))) * num_total_hh_neighbour * survey_df[[weight_col]], na.rm = TRUE), .names = "{.col}")
+      `2023-01-01` = calculate_exposure("2023-01-01", "2023-02-01"),
+      `2023-02-01` = calculate_exposure("2023-02-01", "2023-03-01"),
+      `2023-03-01` = calculate_exposure("2023-03-01", "2023-04-01"),
+      `2023-04-01` = calculate_exposure("2023-04-01", "2023-05-01"),
+      `2023-05-01` = calculate_exposure("2023-05-01", "2023-06-01"),
+      `2023-06-01` = calculate_exposure("2023-06-01", "2023-07-01")
     )
 
   # Convert to long format
   exposure_neighbor_long <- exposure_neighbor %>%
-    pivot_longer(cols = everything(), names_to = "month", values_to = "exposure") %>%
+    pivot_longer(cols = -subpop, names_to = "month", values_to = "exposure") %>%
     mutate(month = as_date(month))
 
-  # Calculate exposure for neighbors unweighted
+  # Calculate exposure for kin unweighted
+  calculate_exposure_unweighted <- function(start_date, end_date) {
+    sum(pmax(0, pmin(as_date(end_date), as_date(survey_df$start)) - as_date(start_date)) * survey_df$num_total_hh_neighbour, na.rm = TRUE)
+  }
+
   exposure_neighbor_unweighted <- survey_df %>%
     summarize(
-      across(`2023-01-01`:`2023-06-01`, ~ sum(pmax(0, pmin(as_date(ymd(.x) %m+% months(1)), as_date(start)) - as_date(ymd(.x))) * num_total_hh_neighbour, na.rm = TRUE), .names = "{.col}")
+      `2023-01-01` = calculate_exposure_unweighted("2023-01-01", "2023-02-01"),
+      `2023-02-01` = calculate_exposure_unweighted("2023-02-01", "2023-03-01"),
+      `2023-03-01` = calculate_exposure_unweighted("2023-03-01", "2023-04-01"),
+      `2023-04-01` = calculate_exposure_unweighted("2023-04-01", "2023-05-01"),
+      `2023-05-01` = calculate_exposure_unweighted("2023-05-01", "2023-06-01"),
+      `2023-06-01` = calculate_exposure_unweighted("2023-06-01", "2023-07-01")
     )
 
   # Convert to long format for unweighted
   exposure_neighbor_unweighted_long <- exposure_neighbor_unweighted %>%
-    pivot_longer(cols = everything(), names_to = "month", values_to = "exposure_unweighted") %>%
+    pivot_longer(cols = -subpop, names_to = "month", values_to = "exposure_unweighted") %>%
     mutate(month = as_date(month))
 
   # Combine weighted and unweighted exposures
   exposure_neighbor_long <- exposure_neighbor_long %>%
-    inner_join(exposure_neighbor_unweighted_long, by = "month")
+    inner_join(exposure_neighbor_unweighted_long, by = c("month", subpop))
 
   # Death Count
   death_count <- death_df %>%
