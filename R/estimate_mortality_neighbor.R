@@ -1,7 +1,7 @@
-#' Estimate Mortality Rate Among Neighbors
+#' Estimate death rate using neighbor ties
 #'
-#' Calculates mortality rates among neighbors based on death records and survey data, optionally within subpopulations.
-#' The function allows for weighted and unweighted estimations.
+#' Calculates death rates, optionally within subpopulations.
+#' The function calculates both weighted and unweighted death_rate estimates
 #'
 #' @param death_df data.frame with death records, including a 'death_relationship/neighbour' column.
 #' @param survey_df data.frame with survey responses, including 'num_total_hh_neighbour' and a unique identifier to match with death_df.

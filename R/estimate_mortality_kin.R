@@ -6,7 +6,6 @@
 #' @param survey_df data.frame with survey responses (and unique id to match to death_df)
 #' @param subpop subpopulation (e.g., zone de sante)
 #'
-#' @return The negative log likelihood of parameter estimates given observed data
 #'
 #' @export
 
