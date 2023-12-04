@@ -1,6 +1,4 @@
-#' Estimate mortality kin
-#'
-#' Estimate mortality rate for kin
+#' Estimate death rate using kin network
 #'
 #' @param death_df data.frame with deaths
 #' @param survey_df data.frame with survey responses (and unique id to match to death_df)
@@ -10,7 +8,8 @@
 #' @export
 
 estimate_mortality_kin <- function(death_df, survey_df, weight_col = "weights", subpop = NULL) {
-  # Validate weight column
+
+  ## Validate weight column
   if (!(weight_col %in% names(survey_df))) {
     stop("The specified weight column is not in the survey_df.")
   }
@@ -24,7 +23,7 @@ estimate_mortality_kin <- function(death_df, survey_df, weight_col = "weights", 
     }
   }
 
-  # Calculate exposure
+  ## Calculate exposure
   exposure_kin <- survey_df %>%
     mutate(exposure = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_kin * .data[[weight_col]]) %>%
     mutate(exposure_unweighted = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_kin) %>%
@@ -33,7 +32,7 @@ estimate_mortality_kin <- function(death_df, survey_df, weight_col = "weights", 
       exposure_unweighted = sum(exposure_unweighted, na.rm = TRUE)
     )
 
-  # calculate deaths
+  ## Calculate deaths
   death_count <- death_df %>%
     filter(`death_relationship/neighbour` == 0) %>%
     summarize(n = sum(.data[[weight_col]]), n_unweighted = n())
