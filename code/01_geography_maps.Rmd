@@ -3,39 +3,44 @@ title: "Create geographic maps"
 author: Casey Breen
 ---
 
-Summary: Create a map of Democratic Republic of the Congo showing mortality rates 
+Summary: Create a map of Democratic Republic of the Congo showing
 
 ```{r}
-## library packages 
+## libraries 
 library(tidyverse)
 library(data.table)
 library(sf)
-library(here)
-library(ggthemes)
-library(viridis)
 
-## read in aires de santes 
-drc_aires_de_santes <- sf::read_sf(here("data/geography/rdc_aires-de-sante"))
+## aires de sante 
+aires_data <-sf::read_sf(here("data/geography/rdc_aires-de-sante"))
 ```
 
 
 ```{r}
 # Filter data for the specific province
-tanganyika_aires_de_santes <- drc_aires_de_santes %>% 
+tanganyika_aires_data <- aires_data %>% 
   filter(Province == "Tanganyika")
 
 # Create a new variable to identify whether each ZS should be colored or grayed out
-tanganyika_aires_de_santes_color <- tanganyika_aires_de_santes %>% 
-  mutate(color_group = if_else(ZS %in% c("Kalemie", "Nyemba", "Nyunzu"), as.character(ZS), "Other")) %>% 
+tanganyika_aires_data <- tanganyika_aires_data %>% 
+  mutate(color_group = if_else(ZS %in% c("Kalemie", "Nyemba", "Nyunzu"), as.character(ZS), "Other"))
+
 # Group by the new variable and create a union of geometries within each group
-   group_by(color_group) %>% 
+tanganyika_aires_data_grouped <- tanganyika_aires_data %>% 
+  group_by(color_group) %>% 
   summarise(geometry = st_union(geometry), .groups = "drop")
+
+
+# Ensure the geometry is valid and compute the centroids
+tanganyika_aires_data_grouped <- st_make_valid(tanganyika_aires_data_grouped)
+centroids <- st_centroid(tanganyika_aires_data_grouped)
 
 # Create a manual color palette: Specify your chosen colors here
 my_palette <- c("Kalemie" = viridis_pal()(3)[1],
                 "Nyemba" = viridis_pal()(3)[2],
                 "Nyunzu" = viridis_pal()(3)[3],
                 "Other" = "grey50")
+
 
 # Coordinates for Kalemie Town (Replace with actual coordinates)
 kalemie_town_x <- 29.2   # Longitude
@@ -45,63 +50,72 @@ kalemie_town_y <-  -5.9  # Latitude
 kalemie_town_df <- data.frame(lon = kalemie_town_x, lat = kalemie_town_y)
 st_geometry(kalemie_town_df) <- st_sfc(st_point(c(kalemie_town_x, kalemie_town_y)), crs = st_crs(data))
 
-# Create plot - with Nyunzu
+
+# Plotting
 tanganyika_prov_map <- ggplot() +
-  geom_sf(data = filter(tanganyika_aires_de_santes_color, color_group != "Other"), aes(fill = color_group), alpha = 0.5, color = "black", linetype = "dotted", size = 0.2) +
- geom_sf(data = filter(tanganyika_aires_de_santes_color, color_group == "Other"), aes(fill = color_group), alpha = 0.5, linetype = 0, color = "black", linetype = "dotted", size = 0.2) +
+  geom_sf(data = filter(tanganyika_aires_data, color_group != "Other"), aes(fill = color_group), alpha = 0.5, color = "black", linetype = "dotted", size = 0.2) +
+  geom_sf(data = filter(tanganyika_aires_data, color_group == "Other"), aes(fill = color_group), alpha = 0.5, linetype = 0, color = "black", linetype = "dotted", size = 0.2) +
   geom_sf_text(data = filter(centroids, color_group != "Other"), aes(label = color_group), check_overlap = TRUE, size = 6 * 1.2) +
   geom_sf(data = kalemie_town_df, color = "black", shape = 18, size = 6) +  # Add the star
   geom_sf_text(data = kalemie_town_df, aes(label = "Kalemie Town"), vjust = -.45, hjust = -.09, size = 5) +  # Add the label
   scale_fill_manual(values = my_palette) +
   coord_sf(datum = NA) +
   guides(fill = FALSE) +
-  theme_map() 
+  theme_map() +
+  labs(title = "Tanganyika Province, Three Zone De Santes")
 
-
-ggsave(plot = tanganyika_prov_map, filename = here("figures/tanganyika_map.png"), width = 8, height = 6)
+## ggplot 
+ggsave(plot = tanganyika_prov_map, filename = here("figures/tanganyika_map.png"), width = 10, height = 7)
 ```
-
 
 ```{r}
 # Filter data for the specific province
-tanganyika_aires_de_santes <- drc_aires_de_santes %>% 
+tanganyika_aires_data <- aires_data %>% 
   filter(Province == "Tanganyika")
 
 # Create a new variable to identify whether each ZS should be colored or grayed out
-# Excluding "Nyunzu"
-tanganyika_aires_de_santes_color <- tanganyika_aires_de_santes %>% 
-  mutate(color_group = if_else(ZS %in% c("Kalemie", "Nyemba"), as.character(ZS), "Other")) %>% 
+tanganyika_aires_data <- tanganyika_aires_data %>% 
+  mutate(color_group = if_else(ZS %in% c("Kalemie", "Nyemba"), as.character(ZS), "Other"))
+
+# Group by the new variable and create a union of geometries within each group
+tanganyika_aires_data_grouped <- tanganyika_aires_data %>% 
   group_by(color_group) %>% 
   summarise(geometry = st_union(geometry), .groups = "drop")
 
+# Ensure the geometry is valid and compute the centroids
+tanganyika_aires_data_grouped <- st_make_valid(tanganyika_aires_data_grouped)
+centroids <- st_centroid(tanganyika_aires_data_grouped)
+
 # Create a manual color palette: Specify your chosen colors here
-# Excluding "Nyunzu" from the palette
 my_palette <- c("Kalemie" = viridis_pal()(3)[1],
                 "Nyemba" = viridis_pal()(3)[3],
                 "Other" = "grey50")
 
+
 # Coordinates for Kalemie Town (Replace with actual coordinates)
 kalemie_town_x <- 29.2   # Longitude
-kalemie_town_y <- -5.9   # Latitude
+kalemie_town_y <-  -5.9  # Latitude
 
 # Create a data frame for Kalemie Town
 kalemie_town_df <- data.frame(lon = kalemie_town_x, lat = kalemie_town_y)
 st_geometry(kalemie_town_df) <- st_sfc(st_point(c(kalemie_town_x, kalemie_town_y)), crs = st_crs(data))
 
-# Create plot - without Nyunzu
+
+# Plotting
 tanganyika_prov_map <- ggplot() +
-  geom_sf(data = filter(tanganyika_aires_de_santes_color, color_group != "Other"), aes(fill = color_group), alpha = 0.5, color = "black", linetype = "dotted", size = 0.2) +
-  geom_sf(data = filter(tanganyika_aires_de_santes_color, color_group == "Other"), aes(fill = color_group), alpha = 0.5, linetype = 0, color = "black", linetype = "dotted", size = 0.2) +
-  geom_sf_text(data = filter(tanganyika_aires_de_santes_color, color_group %in% c("Kalemie", "Nyemba")), aes(label = color_group), check_overlap = TRUE, size = 6 * 1.2) +
+  geom_sf(data = filter(tanganyika_aires_data, color_group != "Other"), aes(fill = color_group), alpha = 0.5, color = "black", linetype = "dotted", size = 0.2) +
+  geom_sf(data = filter(tanganyika_aires_data, color_group == "Other"), aes(fill = color_group), alpha = 0.5, linetype = 0, color = "black", linetype = "dotted", size = 0.2) +
+  geom_sf_text(data = filter(centroids, color_group != "Other"), aes(label = color_group), check_overlap = TRUE, size = 6 * 1.2) +
   geom_sf(data = kalemie_town_df, color = "black", shape = 18, size = 6) +  # Add the star
   geom_sf_text(data = kalemie_town_df, aes(label = "Kalemie Town"), vjust = -.45, hjust = -.09, size = 5) +  # Add the label
   scale_fill_manual(values = my_palette) +
   coord_sf(datum = NA) +
   guides(fill = FALSE) +
-  theme_map() 
+  theme_map() +
+  labs(title = "Tanganyika Province, Three Zone De Santes")
 
-
-ggsave(plot = tanganyika_prov_map, filename = here("figures/tanganyika_map_no_nyunzu.png"), width = 8, height = 6)
+# Save the plot
+ggsave(plot = tanganyika_prov_map, filename = here("figures/tanganyika_map_no_nyunzu.png"), width = 10, height = 7)
 
 ```
 
