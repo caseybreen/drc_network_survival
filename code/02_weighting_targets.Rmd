@@ -3,7 +3,7 @@ title: "Construct weight"
 author: Casey Breen
 ---
 
-Summary: construct weighting targets 
+Summary: Construct weighting targets using Worldpop 2020 UN-adjusted 100m rasters for DRC
 
 ```{r}
 ## packages 
@@ -78,7 +78,7 @@ for (tif_file in tif_files) {
     number <- str_extract(file_base_name, "_\\d+_")
     number <- as.numeric(gsub("_", "", number))
     
-    # Add to the list
+    # create new data.frame row 
     new_row <- data.frame(
       file_name = file_base_name,
       gender = gender,
@@ -86,6 +86,8 @@ for (tif_file in tif_files) {
       sum_value = sum(unlist(result)),
       zone_de_sante = zone
     )
+    
+    ## add to list 
     results_list[[length(results_list) + 1]] <- new_row
   }
 }
@@ -130,14 +132,12 @@ age_category_18_25 <- adjusted_df %>%
 # View the result
 age_category_18_25 <- age_category_18_25 %>% 
   mutate(age_gender = paste0(gender, " | ", age_class))
-```
-```{r}
+
+## combine together weighting targets 
 weighting_targets <- weighting_targets %>% 
   filter(!number %in% c(15,20)) %>% 
   bind_rows(age_category_18_25)
 ```
-
-
 
 ## save weighting targets 
 

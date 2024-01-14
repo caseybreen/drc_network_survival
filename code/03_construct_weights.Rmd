@@ -98,6 +98,7 @@ results_ns_nyemba <- survey_df %>%
 # Combine all into one DataFrame
 survey_df_weighted <- bind_rows(results_ns_kalemie, results_ns_nyunzu, results_ns_nyemba) 
 
+## survey df weighted 
 survey_df_weighted <- survey_df_weighted %>% 
   rename(weight_raking = weights)
 ```
@@ -127,6 +128,7 @@ death_weighted <- death_df %>%
 ## write csv 
 
 ```{r}
+## write csv 
 write_csv(death_weighted, here("data/clean_data/death_df_cleaned_weighted_dec3_2023.csv"))
 write_csv(survey_df_weighted, here("data/clean_data/survey_df_cleaned_weighted_dec3_2023.csv"))
 ```
@@ -164,14 +166,14 @@ write_csv(survey_df_weighted, here("data/clean_data/survey_df_cleaned_weighted_d
 ## survey df weighted 
 survey_df_weighted %>% 
   ggplot(aes(x = weight_poststrat)) + 
-  geom_histogram(binwidth = 0.15, color = "black", fill = "grey") + 
+  geom_histogram(binwidth = 0.3, color = "black", fill = "grey") + 
   theme_cowplot() + 
   scale_x_continuous(breaks = seq(0, 9, by = 0.5), limits = c(0, 9)) # Add tick marks every 0.05 
 
 ## survey df weighted 
 survey_df_weighted %>% 
   ggplot(aes(x = weight_raking)) + 
-  geom_histogram(binwidth = 0.15, color = "black", fill = "grey") + 
+  geom_histogram(binwidth = 0.3, color = "black", fill = "grey") + 
   theme_cowplot() + 
   scale_x_continuous(breaks = seq(0, , by = 0.5), limits = c(0, 9)) # Add tick marks every 0.05 
 
@@ -185,7 +187,7 @@ weight_distribution_plot <- survey_df_weighted %>%
     weight_type == "weight_poststrat" ~ "Poststratification",
     weight_type == "weight_raking" ~ "Raking")) %>% 
   ggplot(aes(x = weight)) + 
-  geom_histogram(binwidth = 0.15, color = "black", fill = "grey") + 
+  geom_histogram(binwidth = 0.2, color = "black", fill = "grey") + 
   facet_wrap(~weight_type, 
              scales = "free_x",
              ncol = 1) +

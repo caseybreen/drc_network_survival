@@ -14,7 +14,8 @@
 #'
 #' @export
 
-calculate_poststrat_weights <- function(weighting_targets, survey_df) {
+generate_poststrat_weights <- function(weighting_targets = weighting_targets, survey_df = survey_df) {
+
   # Poststratification sample
   poststrat_worldpop <- weighting_targets %>%
     group_by(zone_de_sante_name = zone_de_sante, age_class, gender) %>%

@@ -16,7 +16,7 @@
 #'
 #' @export
 
-estimate_mortality_kin_monthly <- function(death_df, survey_df, weight_col = "weights", subpop = NULL) {
+calculate_cdr_kin_monthly <- function(death_df, survey_df, weight_col = "weights", subpop = NULL) {
   # Validate weight column
   if (!(weight_col %in% names(survey_df))) {
     stop("The specified weight column is not in the survey_df.")
@@ -32,19 +32,15 @@ estimate_mortality_kin_monthly <- function(death_df, survey_df, weight_col = "we
     }
   }
 
-  # Calculate exposure for kin
-  calculate_exposure <- function(start_date, end_date) {
-    sum(pmax(0, pmin(as_date(end_date), as_date(survey_df$start)) - as_date(start_date)) * survey_df$num_total_kin * survey_df[[weight_col]], na.rm = TRUE)
-  }
-
+  # Calculate exposure for weighted kin
   exposure_kin <- survey_df %>%
     summarize(
-      `2023-01-01` = calculate_exposure("2023-01-01", "2023-02-01"),
-      `2023-02-01` = calculate_exposure("2023-02-01", "2023-03-01"),
-      `2023-03-01` = calculate_exposure("2023-03-01", "2023-04-01"),
-      `2023-04-01` = calculate_exposure("2023-04-01", "2023-05-01"),
-      `2023-05-01` = calculate_exposure("2023-05-01", "2023-06-01"),
-      `2023-06-01` = calculate_exposure("2023-06-01", "2023-07-01")
+      `2023-01-01` = sum(pmax(0, pmin(as_date("2023-02-01"), as_date(start)) - as_date("2023-01-01")) * num_total_kin * .data[[weight_col]], na.rm = TRUE),
+      `2023-02-01` = sum(pmax(0, pmin(as_date("2023-03-01"), as_date(start)) - as_date("2023-02-01")) * num_total_kin * .data[[weight_col]], na.rm = TRUE),
+      `2023-03-01` = sum(pmax(0, pmin(as_date("2023-04-01"), as_date(start)) - as_date("2023-03-01")) * num_total_kin * .data[[weight_col]], na.rm = TRUE),
+      `2023-04-01` = sum(pmax(0, pmin(as_date("2023-05-01"), as_date(start)) - as_date("2023-04-01")) * num_total_kin * .data[[weight_col]], na.rm = TRUE),
+      `2023-05-01` = sum(pmax(0, pmin(as_date("2023-06-01"), as_date(start)) - as_date("2023-05-01")) * num_total_kin * .data[[weight_col]], na.rm = TRUE),
+      `2023-06-01` = sum(pmax(0, pmin(as_date("2023-07-01"), as_date(start)) - as_date("2023-06-01")) * num_total_kin * .data[[weight_col]], na.rm = TRUE)
     )
 
   # Convert to long format
@@ -53,18 +49,14 @@ estimate_mortality_kin_monthly <- function(death_df, survey_df, weight_col = "we
     mutate(month = as_date(month))
 
   # Calculate exposure for kin unweighted
-  calculate_exposure_unweighted <- function(start_date, end_date) {
-    sum(pmax(0, pmin(as_date(end_date), as_date(survey_df$start)) - as_date(start_date)) * survey_df$num_total_kin, na.rm = TRUE)
-  }
-
   exposure_kin_unweighted <- survey_df %>%
     summarize(
-      `2023-01-01` = calculate_exposure_unweighted("2023-01-01", "2023-02-01"),
-      `2023-02-01` = calculate_exposure_unweighted("2023-02-01", "2023-03-01"),
-      `2023-03-01` = calculate_exposure_unweighted("2023-03-01", "2023-04-01"),
-      `2023-04-01` = calculate_exposure_unweighted("2023-04-01", "2023-05-01"),
-      `2023-05-01` = calculate_exposure_unweighted("2023-05-01", "2023-06-01"),
-      `2023-06-01` = calculate_exposure_unweighted("2023-06-01", "2023-07-01")
+      `2023-01-01` = sum(pmax(0, pmin(as_date("2023-02-01"), as_date(start)) - as_date("2023-01-01")) * num_total_kin, na.rm = TRUE),
+      `2023-02-01` = sum(pmax(0, pmin(as_date("2023-03-01"), as_date(start)) - as_date("2023-02-01")) * num_total_kin, na.rm = TRUE),
+      `2023-03-01` = sum(pmax(0, pmin(as_date("2023-04-01"), as_date(start)) - as_date("2023-03-01")) * num_total_kin, na.rm = TRUE),
+      `2023-04-01` = sum(pmax(0, pmin(as_date("2023-05-01"), as_date(start)) - as_date("2023-04-01")) * num_total_kin, na.rm = TRUE),
+      `2023-05-01` = sum(pmax(0, pmin(as_date("2023-06-01"), as_date(start)) - as_date("2023-05-01")) * num_total_kin, na.rm = TRUE),
+      `2023-06-01` = sum(pmax(0, pmin(as_date("2023-07-01"), as_date(start)) - as_date("2023-06-01")) * num_total_kin, na.rm = TRUE)
     )
 
   exposure_kin_long_unweighted <- exposure_kin_unweighted %>%
@@ -78,11 +70,22 @@ estimate_mortality_kin_monthly <- function(death_df, survey_df, weight_col = "we
   # Calculate death counts
   death_count <- death_df %>%
     filter(!is.na(death_month)) %>%
-    filter(`death_relationship/neighbour` == 0) %>%
+    filter(`death_relationship/family` == 1) %>%
     group_by(across(all_of(c(subpop, "death_month")))) %>%
     summarize(n = sum(.data[[weight_col]]), n_unweighted = n(), .groups = "drop") %>%
     mutate(death_month = as.Date(death_month)) %>%
     ungroup()
+
+  # Check if 'subpop' is present in the data frame and update accordingly
+  if (!is.null(subpop)) {
+    # If 'subpop' exists and is a column in 'death_count'
+    death_count <- death_count %>%
+      complete(!!sym(subpop), death_month, fill = list(n = 0, n_unweighted = 0))
+  } else {
+    # If 'subpop' does not exist or is not a column in 'death_count'
+    death_count <- death_count %>%
+      complete(death_month, fill = list(n = 0, n_unweighted = 0))
+  }
 
   # Join exposure and death counts
   results_df <- exposure_kin_long %>%

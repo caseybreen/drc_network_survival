@@ -10,9 +10,12 @@ Summary: Create a map of Democratic Republic of the Congo showing
 library(tidyverse)
 library(data.table)
 library(sf)
+library(viridis)
 
 ## aires de sante 
-aires_data <-sf::read_sf(here("data/geography/rdc_aires-de-sante"))
+aires_data <- sf::read_sf(here("data/geography/rdc_aires-de-sante"))
+
+africa_map <- sf::read_sf(here("data/geography/Africa_Boundaries-shp"))
 ```
 
 
@@ -41,28 +44,27 @@ my_palette <- c("Kalemie" = viridis_pal()(3)[1],
                 "Nyunzu" = viridis_pal()(3)[3],
                 "Other" = "grey50")
 
-
-# Coordinates for Kalemie Town (Replace with actual coordinates)
+# Coordinates for Kalemie Town
 kalemie_town_x <- 29.2   # Longitude
 kalemie_town_y <-  -5.9  # Latitude
 
 # Create a data frame for Kalemie Town
 kalemie_town_df <- data.frame(lon = kalemie_town_x, lat = kalemie_town_y)
 st_geometry(kalemie_town_df) <- st_sfc(st_point(c(kalemie_town_x, kalemie_town_y)), crs = st_crs(data))
+kalemie_town_df <- st_set_crs(kalemie_town_df, 4326)
 
 
 # Plotting
-tanganyika_prov_map <- ggplot() +
+tanganyika_prov_map <- ggplot() + 
   geom_sf(data = filter(tanganyika_aires_data, color_group != "Other"), aes(fill = color_group), alpha = 0.5, color = "black", linetype = "dotted", size = 0.2) +
-  geom_sf(data = filter(tanganyika_aires_data, color_group == "Other"), aes(fill = color_group), alpha = 0.5, linetype = 0, color = "black", linetype = "dotted", size = 0.2) +
+  geom_sf(data = filter(tanganyika_aires_data, color_group == "Other"), aes(fill = color_group), alpha = 0.2, color = "black", linetype = "blank", size = 0.2) +
   geom_sf_text(data = filter(centroids, color_group != "Other"), aes(label = color_group), check_overlap = TRUE, size = 6 * 1.2) +
   geom_sf(data = kalemie_town_df, color = "black", shape = 18, size = 6) +  # Add the star
-  geom_sf_text(data = kalemie_town_df, aes(label = "Kalemie Town"), vjust = -.45, hjust = -.09, size = 5) +  # Add the label
+  geom_sf_text(data = kalemie_town_df, aes(label = "Kalemie Town"), vjust = -.45, hjust = -.09, size = 7) +  # Add the label
   scale_fill_manual(values = my_palette) +
   coord_sf(datum = NA) +
   guides(fill = FALSE) +
-  theme_map() +
-  labs(title = "Tanganyika Province, Three Zone De Santes")
+  theme_map() # + labs(title = "Tanganyika Province, focal health zones")
 
 ## ggplot 
 ggsave(plot = tanganyika_prov_map, filename = here("figures/tanganyika_map.png"), width = 10, height = 7)
@@ -92,15 +94,6 @@ my_palette <- c("Kalemie" = viridis_pal()(3)[1],
                 "Other" = "grey50")
 
 
-# Coordinates for Kalemie Town (Replace with actual coordinates)
-kalemie_town_x <- 29.2   # Longitude
-kalemie_town_y <-  -5.9  # Latitude
-
-# Create a data frame for Kalemie Town
-kalemie_town_df <- data.frame(lon = kalemie_town_x, lat = kalemie_town_y)
-st_geometry(kalemie_town_df) <- st_sfc(st_point(c(kalemie_town_x, kalemie_town_y)), crs = st_crs(data))
-
-
 # Plotting
 tanganyika_prov_map <- ggplot() +
   geom_sf(data = filter(tanganyika_aires_data, color_group != "Other"), aes(fill = color_group), alpha = 0.5, color = "black", linetype = "dotted", size = 0.2) +
@@ -112,12 +105,38 @@ tanganyika_prov_map <- ggplot() +
   coord_sf(datum = NA) +
   guides(fill = FALSE) +
   theme_map() +
-  labs(title = "Tanganyika Province, Three Zone De Santes")
+  labs(title = "Tanganyika Province, focal health zones")
 
 # Save the plot
 ggsave(plot = tanganyika_prov_map, filename = here("figures/tanganyika_map_no_nyunzu.png"), width = 10, height = 7)
 
 ```
 
+```{r}
+# Assuming your data frame is named 'your_data_frame'
+africa_map_continental <- africa_map %>%
+                  filter(!NAME_0 %in% c("French Southern Territories", "Reunion", "Mayotte", "Seychelles", "Mauritius", "Cape Verde"))
+
+# Simplify the geometry
+# The dTolerance parameter controls the degree of simplification
+africa_map_continental <- st_make_valid(africa_map_continental)
+africa_map_continental_simplified <- st_simplify(africa_map_continental, dTolerance = 0.01, preserveTopology = TRUE)
+
+## make drc map 
+africa_drc_map  <- ggplot() +
+ geom_sf(data = africa_map_continental_simplified, alpha = 0.2, color = "black", fill = "grey", linetype = "dotted", size = 0.2) +
+  geom_sf(data = tanganyika_aires_data, alpha = 1, color = "black", fill = "blue", linetype = "blank", size = 1) +
+  theme_map() + 
+  geom_text(aes(x = 23, y = -2.8, label = "DRC"), color = "black", size = 6, fontface = "bold") 
+  # geom_segment(aes(x = kalemie_town_x + 2, y = kalemie_town_y, xend = 70, yend = kalemie_town_y), 
+  #              arrow = arrow(type = "closed", length = unit(0.2, "inches")), 
+  #              color = "blue", size = 1)
+
+## plot map 
+combined_geo_plot <- cowplot::plot_grid(africa_drc_map, tanganyika_prov_map, labels = "AUTO")
+  
+ggsave(plot = combined_geo_plot, filename = here("figures/combined_geo_plot.png"), bg = "white", width = 14, height = 7)
+
+```
 
 

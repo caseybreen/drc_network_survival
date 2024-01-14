@@ -16,7 +16,7 @@
 #' @export
 
 
-estimate_mortality_neighbor <- function(death_df, survey_df, weight_col = "weights", subpop = NULL) {
+calculate_cdr_neighbor <- function(death_df, survey_df, weight_col = "weights", subpop = NULL) {
 
   # Validate weight column
   if (!(weight_col %in% names(survey_df))) {
