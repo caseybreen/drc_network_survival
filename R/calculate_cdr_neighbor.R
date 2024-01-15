@@ -15,7 +15,6 @@
 #'
 #' @export
 
-
 calculate_cdr_neighbor <- function(death_df, survey_df, weight_col = "weights", subpop = NULL) {
 
   # Validate weight column
@@ -47,7 +46,7 @@ calculate_cdr_neighbor <- function(death_df, survey_df, weight_col = "weights", 
   # Calculate death counts
   death_count <- death_df %>%
     filter(`death_relationship/neighbour` == 1 | `death_relationship/household` == 1) %>%
-    summarize(n = sum(.data[[weight_col]]), n_unweighted = n())
+    summarize(n_deaths = sum(.data[[weight_col]]), n_deaths_unweighted = n())
 
 
   # Combine results
@@ -55,15 +54,15 @@ calculate_cdr_neighbor <- function(death_df, survey_df, weight_col = "weights", 
     exposure_hh_neighbors %>%
       full_join(death_count, by = subpop) %>%
       mutate(
-        death_rate = 10000 * n / exposure,
-        death_rate_unweighted = 10000 * n_unweighted / exposure_unweighted
+        death_rate = 10000 * n_deaths / exposure,
+        death_rate_unweighted = 10000 * n_deaths_unweighted / exposure_unweighted
       )
   } else {
     exposure_hh_neighbors %>%
       bind_cols(death_count) %>%
       mutate(
-        death_rate = 10000 * n / exposure,
-        death_rate_unweighted = 10000 * n_unweighted / exposure_unweighted
+        death_rate = 10000 * n_deaths / exposure,
+        death_rate_unweighted = 10000 * n_deaths_unweighted / exposure_unweighted
       )
   }
 

@@ -72,7 +72,7 @@ calculate_cdr_kin_monthly <- function(death_df, survey_df, weight_col = "weights
     filter(!is.na(death_month)) %>%
     filter(`death_relationship/family` == 1) %>%
     group_by(across(all_of(c(subpop, "death_month")))) %>%
-    summarize(n = sum(.data[[weight_col]]), n_unweighted = n(), .groups = "drop") %>%
+    summarize(n_deaths = sum(.data[[weight_col]]), n_deaths_unweighted = n(), .groups = "drop") %>%
     mutate(death_month = as.Date(death_month)) %>%
     ungroup()
 
@@ -80,19 +80,19 @@ calculate_cdr_kin_monthly <- function(death_df, survey_df, weight_col = "weights
   if (!is.null(subpop)) {
     # If 'subpop' exists and is a column in 'death_count'
     death_count <- death_count %>%
-      complete(!!sym(subpop), death_month, fill = list(n = 0, n_unweighted = 0))
+      complete(!!sym(subpop), death_month, fill = list(n_deaths = 0, n_deaths_unweighted = 0))
   } else {
     # If 'subpop' does not exist or is not a column in 'death_count'
     death_count <- death_count %>%
-      complete(death_month, fill = list(n = 0, n_unweighted = 0))
+      complete(death_month, fill = list(n_deaths = 0, n_deaths_unweighted = 0))
   }
 
   # Join exposure and death counts
   results_df <- exposure_kin_long %>%
     left_join(death_count, by = c("month" = "death_month", subpop)) %>%
     mutate(
-      death_rate = 10000 * n / exposure,
-      death_rate_unweighted = 10000 * n_unweighted / exposure_unweighted
+      death_rate = 10000 * n_deaths / exposure,
+      death_rate_unweighted = 10000 * n_deaths_unweighted / exposure_unweighted
     )
 
   return(results_df)

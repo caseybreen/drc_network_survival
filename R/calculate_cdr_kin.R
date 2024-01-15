@@ -7,7 +7,7 @@
 #'
 #' @export
 
-estimate_mortality_kin <- function(death_df, survey_df, weight_col = "weights", subpop = NULL) {
+calculate_cdr_kin <- function(death_df, survey_df, weight_col = "weights", subpop = NULL) {
 
   ## Validate weight column
   if (!(weight_col %in% names(survey_df))) {
@@ -35,22 +35,22 @@ estimate_mortality_kin <- function(death_df, survey_df, weight_col = "weights", 
   ## Calculate deaths
   death_count <- death_df %>%
     filter(`death_relationship/family` == 1) %>%
-    summarize(n = sum(.data[[weight_col]]), n_unweighted = n())
+    summarize(n_deaths = sum(.data[[weight_col]]), n_deaths_unweighted = n())
 
   # Calculate death rates
   if (!is.null(subpop)) {
     results_df <- exposure_kin %>%
       full_join(death_count, by = subpop) %>%
       mutate(
-        death_rate = 10000 * n / exposure,
-        death_rate_unweighted = 10000 * n_unweighted / exposure_unweighted
+        death_rate = 10000 * n_deaths / exposure,
+        death_rate_unweighted = 10000 * n_deaths_unweighted / exposure_unweighted
       )
   } else {
     results_df <- exposure_kin %>%
       bind_cols(death_count) %>%
       mutate(
-        death_rate = 10000 * n / exposure,
-        death_rate_unweighted = 10000 * n_unweighted / exposure_unweighted
+        death_rate = 10000 * n_deaths / exposure,
+        death_rate_unweighted = 10000 * n_deaths_unweighted / exposure_unweighted
       )
   }
 

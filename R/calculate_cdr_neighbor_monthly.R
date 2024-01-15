@@ -72,7 +72,7 @@ calculate_cdr_neighbor_monthly <- function(death_df, survey_df, weight_col = "we
     filter(!is.na(death_month)) %>%
     filter(`death_relationship/neighbour` == 1 | `death_relationship/household` == 1) %>%
     group_by(across(all_of(c(subpop, "death_month")))) %>%
-    summarize(n = sum(.data[[weight_col]]), n_unweighted = n(), .groups = "keep") %>%
+    summarize(n_deaths = sum(.data[[weight_col]]), n_deaths_unweighted = n(), .groups = "keep") %>%
     mutate(death_month = as.Date(death_month)) %>%
     ungroup()
 
@@ -80,19 +80,19 @@ calculate_cdr_neighbor_monthly <- function(death_df, survey_df, weight_col = "we
   if (!is.null(subpop)) {
     # If 'subpop' exists and is a column in 'death_count'
     death_count <- death_count %>%
-      complete(!!sym(subpop), death_month, fill = list(n = 0, n_unweighted = 0))
+      complete(!!sym(subpop), death_month, fill = list(n_deaths = 0, n_deaths_unweighted = 0))
   } else {
     # If 'subpop' does not exist or is not a column in 'death_count'
     death_count <- death_count %>%
-      complete(death_month, fill = list(n = 0, n_unweighted = 0))
+      complete(death_month, fill = list(n_deaths = 0, n_deaths_unweighted = 0))
   }
 
   # Join Exposure and Death Counts
   results_df <- exposure_neighbor_long %>%
     left_join(death_count, by = c("month" = "death_month", subpop)) %>%
     mutate(
-      death_rate = n * 10000 / exposure,
-      death_rate_unweighted = n_unweighted * 10000 / exposure_unweighted
+      death_rate = n_deaths * 10000 / exposure,
+      death_rate_unweighted = n_deaths_unweighted * 10000 / exposure_unweighted
     )
 
   return(results_df)

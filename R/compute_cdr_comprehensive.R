@@ -57,7 +57,7 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
         death_rate_unweighted = (kin_result$death_rate_unweighted * blended_weight_kin + neighbor_result$death_rate_unweighted * (1 - blended_weight_kin)),
         type = "blended"
       ) %>%
-      select(-n, -n_unweighted, -exposure)
+      select(-n_deaths, -n_deaths_unweighted, -exposure, -exposure_unweighted)
 
     # HH estimate
     household_result <- estimate_hh_func(survey_df = survey_df, death_df = death_df, weight_col = weight_col, subpop = subpopulation) %>%
@@ -127,7 +127,7 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
           death_rate_unweighted = (kin_result$death_rate_unweighted * blended_weight_kin + neighbor_result$death_rate_unweighted * (1 - blended_weight_kin)),
           type = "blended"
         ) %>%
-        select(-n, -n_unweighted, -exposure)
+        select(-n_deaths, -n_deaths_unweighted, -exposure, -exposure_unweighted)
 
       # Store results
       results_list[[paste("kin", i, sep = "_")]] <- kin_result
@@ -136,12 +136,27 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
       results_list[[paste("household", i, sep = "_")]] <- household_result
 
 
-      cat(i)
+      cat(i, " ")
     }
   }
 
   # Combine all results and return
   results_df <- bind_rows(results_list)
 
-  return(results_df)
+  # find only cols that exist
+  existing_cols <- names(results_df)[names(results_df) %in% c("bootstrap_iter", "type", "month", subpopulation)]
+
+  # Apply pivot_longer with the determined columns to exclude
+  results_df <- results_df %>%
+    pivot_longer(
+      cols = -c(existing_cols),  # This will ignore non-existent columns
+      names_to = c(".value", "weights"),
+      names_pattern = "(.*?)(_unweighted)?$"
+    ) %>%
+    mutate(weights = case_when(
+      weights == "_unweighted" ~ "unweighted",
+      TRUE ~ "poststrat"
+    ))
+
+
 }

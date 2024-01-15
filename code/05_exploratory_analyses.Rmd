@@ -1,0 +1,87 @@
+---
+title: Additional comparisons 
+author: "Casey Breen" 
+---
+
+# Summary 
+
+In this notebook, we make several exploratory analyses that aren't pre-registered. 
+
+## Pooled vs. monthly pooled estimates 
+
+For our main estimates, we assume that mortality is constant over our full reference period. However, this is not 
+
+```{r}
+## main estimates monthly 
+main_estimate_monthly <- estimate_death_rate(death_df = death_df, survey_df = survey_df, bootstrap = 100, monthly = T, weight_col = "weight_poststrat")
+
+estimate_monthly <- main_estimate_monthly %>% 
+  group_by(bootstrap_iter, type) %>% 
+  summarize(death_rate = mean(death_rate, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  group_by(type) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate)) %>% 
+  mutate(method = "monthly")
+
+main_estimate_uncertainty <- estimate_death_rate(death_df = death_df, survey_df = survey_df, bootstrap = 100, month = F,  weight_col = "weight_poststrat")
+
+estimate_pooled <-  main_estimate_uncertainty %>% 
+  group_by(bootstrap_iter, type) %>% 
+  summarize(death_rate = mean(death_rate, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  group_by(type) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate)) %>% 
+  mutate(method = "pooled") 
+
+combined_estimates <- bind_rows(estimate_monthly, estimate_pooled)
+
+pooled_vs_monthly_comparison_plot <- combined_estimates %>% 
+  ggplot(aes(x = type, y = mean, ymin = lower, ymax = upper, color = method, shape = method)) + 
+  geom_pointrange(position = position_dodge(.2), size = .75, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23)) +
+  ggsci::scale_color_lancet() + 
+  ylim(0, 1) + 
+  theme_cowplot() + 
+  theme(legend.position = "bottom") + 
+  labs(x = "Zone de Sante", y = "Daily Crude Death Rate") + 
+  labs(title = "Estimates, Pooled vs. Monthly Estimates" )
+
+
+ggsave(plot = pooled_vs_monthly_comparison_plot, filename = here("figures/main_plot_pooled_vs_monthly_comparison_plot.png"), width = 6, height = 4)
+```
+
+## HH estimates 
+
+```{r}
+hh_estimates <- networksurvival::estimate_death_rate(death_df = death_df,
+                                     survey_df = survey_df,
+                                     weight_col = "weight_poststrat", bootstrap = 300)
+
+hh_estimates_point <- networksurvival::estimate_death_rate(death_df = death_df,
+                                     survey_df = survey_df,
+                                     weight_col = "weight_poststrat")
+## zone de sante 
+hh_estimate_plot <- hh_estimates %>% 
+  group_by(type) %>% 
+  summarize(lower = quantile(death_rate, 0.025),
+            upper = quantile(death_rate, 0.975),
+            mean = mean(death_rate)) %>% 
+  
+  ggplot(aes(x = "Death Rate", shape = type, color = type, y = mean, ymin = lower, ymax = upper)) + 
+  geom_pointrange(position = position_dodge(.5), size = 1.2, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23, 24)) +
+  scale_color_viridis_d() + 
+  ylim(0, 1) + 
+  theme_cowplot() + 
+  theme(legend.position = "bottom") + 
+#  geom_hline(yintercept = 1, linetype = "dashed") + 
+  labs(x = "", y = "Crude Death Rate") 
+
+
+ggsave(plot = hh_estimate_plot, filename = here("figures/hh_plot.png"), width = 6, height = 4)
+
+```
