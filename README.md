@@ -10,7 +10,7 @@ The code under the `/code` repository is meant to be run in order:
 * `01_geography_maps.Rmd` – creates map for paper 
 * `02_weighting_targets.Rmd` – constructs weighting targets from worldpop data 
 * `03_construct_weights.Rmd` – constructs using both raking and post-stratification. (We only use post-stratification weights here)
-* `04_cdr_estimation.Rmd` – estimates set of pre-registered estimates 
+* `04_cdr_estimation.Rmd` – estimate CDR and uncertainty 
 
 
 ## Google Drive folders
