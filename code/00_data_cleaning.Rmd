@@ -23,6 +23,9 @@ death_df <- readxl::read_xlsx(here("data/raw_data/2023-09-08/network_survey_2023
 ```
 
 
+For pre-registration - count missing data 
+
+
 ```{r}
 ## People who did not give consent 
 survey_df %>% 
@@ -60,6 +63,7 @@ death_df %>%
 death_df_clean <- death_df %>% 
   filter(!date_join_final_death %in% c(44927, 45061, 44928, 44951, 45030))
 
+## rename variables abd create death month variable
 death_df_clean <- death_df_clean %>% 
   mutate(uuid_ki = uuid_ki4) %>% 
   mutate(zone_de_sante_name = case_when(
@@ -71,6 +75,7 @@ death_df_clean <- death_df_clean %>%
 
 ## write out files 
 ```{r}
+## write out csv files 
 write_csv(survey_df_clean, here("data/clean_data/survey_df_cleaned_dec3_2023.csv"))
 write_csv(death_df_clean, here("data/clean_data/death_df_cleaned_dec3_2023.csv"))
 ```

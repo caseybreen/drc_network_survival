@@ -3,7 +3,7 @@ title: "Create geographic maps"
 author: Casey Breen
 ---
 
-Summary: Create a map of Democratic Republic of the Congo showing
+Summary: Create a map of Tanganyika Province / study sites 
 
 ```{r}
 ## libraries 
