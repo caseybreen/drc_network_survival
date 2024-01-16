@@ -1,4 +1,4 @@
-# remote_mortality_study
+# Network Survival Study - DRC
 
 Code, survey instruments, irb protocols, and other resource for DRC mortality study. 
 
