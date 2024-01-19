@@ -91,6 +91,10 @@ calculate_cdr_kin_monthly <- function(death_df, survey_df, weight_col = "weights
   results_df <- exposure_kin_long %>%
     left_join(death_count, by = c("month" = "death_month", subpop)) %>%
     mutate(
+      n_deaths = coalesce(n_deaths, 0),
+      n_deaths_unweighted = coalesce(n_deaths_unweighted, 0)
+    ) %>%
+    mutate(
       death_rate = 10000 * n_deaths / exposure,
       death_rate_unweighted = 10000 * n_deaths_unweighted / exposure_unweighted
     )

@@ -74,6 +74,7 @@ calculate_cdr_household_monthly <- function(death_df, survey_df, weight_col = "w
     group_by(across(all_of(c(subpop, "death_month")))) %>%
     summarize(n_deaths = sum(.data[[weight_col]]), n_deaths_unweighted = n(), .groups = "drop") %>%
     mutate(death_month = as.Date(death_month)) %>%
+    mutate(n_deaths = replace_na(n_deaths, 0)) %>%
     ungroup()
 
   # Check if 'subpop' is present in the data frame and update accordingly

@@ -49,6 +49,7 @@ calculate_cdr_household <- function(death_df, survey_df, weight_col = "weights",
     summarize(n_deaths = sum(.data[[weight_col]]), n_deaths_unweighted = n())
 
 
+
   # Combine results
   results_df <- if (!is.null(subpop)) {
     exposure_hh_neighbors %>%

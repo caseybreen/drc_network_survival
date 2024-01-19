@@ -91,6 +91,10 @@ calculate_cdr_neighbor_monthly <- function(death_df, survey_df, weight_col = "we
   results_df <- exposure_neighbor_long %>%
     left_join(death_count, by = c("month" = "death_month", subpop)) %>%
     mutate(
+      n_deaths = coalesce(n_deaths, 0),
+      n_deaths_unweighted = coalesce(n_deaths_unweighted, 0)
+    ) %>%
+    mutate(
       death_rate = n_deaths * 10000 / exposure,
       death_rate_unweighted = n_deaths_unweighted * 10000 / exposure_unweighted
     )

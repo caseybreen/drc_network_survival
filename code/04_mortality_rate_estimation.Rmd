@@ -35,6 +35,9 @@ death_df <- read_csv(here("data/clean_data/death_df_cleaned_weighted_dec3_2023.c
 
 ## read in weighting targets 
 weighting_targets <- read_csv(here("data/weighting/weighting_targets.csv"))
+
+## set seed
+set.seed(1)
 ```
 
 
@@ -51,7 +54,7 @@ cdr_pooled_point <- networksurvival::compute_cdr_comprehensive(death_df = death_
 ## run 10,000 bootstrap samples 
 cdr_pooled_bootstrap <- networksurvival::compute_cdr_comprehensive(death_df = death_df,
                                                                         survey_df = survey_df,
-                                                                        weight_col = "weight_poststrat", bootstrap = 100) 
+                                                                        weight_col = "weight_poststrat", bootstrap = 10000) 
 
 ## uncertainty estimates 
 cdr_pooled_uncertainty <- cdr_pooled_bootstrap %>% 
@@ -76,7 +79,7 @@ cdr_pooled_plot <- cdr_pooled_point_uncertainty %>%
   ylim(0, 1) + 
   theme_half_open(12) + 
   theme(legend.position = "bottom") + 
-  labs(x = "Network Tie", y = "Daily Crude Death Rate")
+  labs(x = "Network Tie", y = "Estimated Average Daily Crude Death Rate")
 
 ## save main estimate plot 
 ggsave(plot = cdr_pooled_plot, filename = here("figures/cdr_pooled_plot.png"), width = 6, height = 4)
@@ -110,7 +113,7 @@ cdr_pooled_heath_zones_plot <- cdr_pooled_hz_point_uncertainty %>%
   ylim(0, 1) + 
   theme_cowplot() + 
   theme(legend.position = "bottom") + 
-  labs(x = "Zone de Sante", y = "Daily Crude Death Rate")
+  labs(x = "Zone de Sante", y = "Estimated Average Daily Crude Death Rate")
 
 ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures/cdr_pooled_heath_zones_plot.png"), width = 6, height = 4)
 ```
@@ -190,79 +193,21 @@ ggsave(plot = main_plot_monthly_zs, filename = here("figures/main_plot_zs_monthl
 
 ## Preregistered estimates 
 
-```{r}
-## pre-registered estimates 
-preregistered_estimates <- bind_rows(cdr_pooled_hz_point_uncertainty, cdr_pooled_point_uncertainty) %>% 
-  filter(type != "household") %>% 
-  mutate(geography = case_when(
-    is.na(zone_de_sante_name) ~ "Pooled",
-    TRUE ~ zone_de_sante_name
-  )) %>% 
-  select(geography, network_tie = type, weights, death_rate, death_rate_lower, death_rate_upper) %>% 
-  arrange(desc(geography))
-
-# Convert to LaTeX table
-preregistered_estimates_tex <- xtable(preregistered_estimates, caption = "", label = "table:preregister")
-
-# Print the LaTeX code with customized format
-print.xtable(preregistered_estimates_tex, include.rownames = FALSE,
-             hline.after = c(-1, 0, nrow(data)), # Add horizontal lines at specific positions
-             tabular.environment = "tabular",
-             floating.environment = "table",
-             floating = TRUE,
-             latex.environments = "center",
-             booktabs = TRUE,
-             file = here("tables/preregistered_estimates.tex")) # Use booktabs for better formatting
-```
 
 ```{r}
-## pre-registered estimates 
-preregistered_estimates_monthly <- cdr_monthly_point_uncertainty %>% 
-  filter(type != "household") %>% 
-  mutate(geography = "Pooled") %>% 
-  select(geography, month, network_tie = type, weights, death_rate, death_rate_lower, death_rate_upper) %>% 
-  arrange(desc(geography)) %>% 
+cdr_estimates <- bind_rows(cdr_pooled_point_uncertainty, cdr_pooled_hz_point_uncertainty) %>% 
+  mutate(zone_de_sante_name = replace_na(zone_de_sante_name, "Pooled")) %>% 
+  mutate(month = "Pooled")
+
+cdr_estimates_monthly <- bind_rows(cdr_monthly_hz_point_uncertainty, cdr_monthly_point_uncertainty) %>% 
+    mutate(zone_de_sante_name = replace_na(zone_de_sante_name, "Pooled")) %>% 
   mutate(month = as.character(month))
 
+preregistered_estimates <- cdr_estimates %>% 
+  bind_rows(cdr_estimates_monthly) %>% 
+  select(type, weights, zone_de_sante_name, month, death_rate, death_rate_lower, death_rate_upper)
 
-# Convert to LaTeX table
-preregistered_estimates_monthly_tex <- xtable(preregistered_estimates_monthly, caption = "", label = "table:preregister_monthly")
 
-# Print the LaTeX code with customized format
-print.xtable(preregistered_estimates_monthly_tex, include.rownames = FALSE,
-             hline.after = c(-1, 0, nrow(data)), # Add horizontal lines at specific positions
-             tabular.environment = "tabular",
-             floating.environment = "table",
-             floating = TRUE,
-             latex.environments = "center",
-             booktabs = TRUE,
-             file = here("tables/preregistered_estimates_monthly.tex")) # Use booktabs for better formatting
-
+write_csv(preregistered_estimates, here("data", "preregistered_estimates", "preregistered_estiamtes.csv"))
 ```
-
-
-```{r}
-## pre-registered estimates 
-preregistered_estimates_monthly_hz <- cdr_monthly_hz_point_uncertainty %>% 
-  filter(type != "household") %>% 
-  select(health_zone = zone_de_sante_name, month, network_tie = type, weights, death_rate, death_rate_lower, death_rate_upper) %>% 
-  mutate(month = as.character(month)) %>% 
-  arrange(desc(health_zone))
-
-# Convert to LaTeX table
-preregistered_estimates_monthly_hz_tex <- xtable(preregistered_estimates_monthly_hz, caption = "", label = "table:preregister_monthly")
-
-# Print the LaTeX code with customized format
-print.xtable(preregistered_estimates_monthly_hz_tex, include.rownames = FALSE,
-             hline.after = c(-1, 0, nrow(data)), # Add horizontal lines at specific positions
-             tabular.environment = "tabular",
-             floating.environment = "table",
-             floating = TRUE,
-             latex.environments = "center",
-             booktabs = TRUE,
-             file = here("tables/preregistered_estimates_monthly_hz.tex")) # Use booktabs for better formatting
-```
-
-
-
 
