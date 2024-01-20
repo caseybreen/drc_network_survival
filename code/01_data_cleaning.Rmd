@@ -32,21 +32,28 @@ Drop missing data (and count number of  for pre-registration)
 survey_df %>% 
   filter(consent != "yes")
 
-## Number respondents with missing household or neighbor (Drop, N = 2)
+## Missing number of respondents with missing household or neighbor (Drop, N = 2)
 survey_df %>% 
   filter(consent == "yes") %>% 
   filter(is.na(num_total_hh_neighbour))
 
-## Total number of kin (Drop, N = 18)
+## Missing number of total number of kin (Drop, N = 18)
 survey_df %>% 
   filter(consent == "yes") %>% 
   filter(is.na(num_total_kin))
+
+## Missing number of total number of weight  livelihood (Drop, N = 3)
+survey_df %>% 
+  filter(consent == "yes") %>% 
+  filter(is.na(livelihood) | is.na(education_level) | is.na(material_house) | is.na(cooking_fuel) | is.na(bed))
 
 ## Drop missing values 
 survey_df_clean <- survey_df %>% 
   filter(consent == "yes") %>% 
   filter(!is.na(num_total_hh_neighbour)) %>% 
-  filter(!is.na(num_total_kin))
+  filter(!is.na(num_total_kin)) %>% 
+    filter(!is.na(livelihood) & !is.na(education_level) & !is.na(material_house) & !is.na(cooking_fuel) & !is.na(bed))
+
 
 ## Create new start month variable 
 survey_df_clean <- survey_df_clean %>% 
