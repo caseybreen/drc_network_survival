@@ -8,6 +8,7 @@ Generate weights - estimation code
 ```{r}
 ## packages 
 library(tidyverse)
+library(dplyr)
 library(sf)
 library(raster)
 library(exactextractr)
