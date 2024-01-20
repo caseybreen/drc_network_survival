@@ -1,12 +1,8 @@
 #' Calculate Blended Weight for Kin Estimates
 #'
 #' This function calculates the blended weight to be applied to kin estimates in a mortality study.
-#' The weight is derived based on the variance of estimates from kin and neighbor data, as well as their covariance.
-#' The approach helps in balancing the two types of estimates, considering their respective variabilities and interrelationship.
-#'
-#'
-#' The weight calculated is specifically designed to be applied to kin estimates. It considers the variance of death rates from both kin and neighbor data and their covariance, aiming to achieve a more balanced and accurate overall estimate.
-#'
+#' The weight is derived based on the variance of estimates from kin and neighbor data, as well as their covariance.#'
+#'#'
 #' Example usage:
 #' kin_blended_weight <- calculate_blended_weight_kin(mortality_estimates)
 #'
@@ -32,7 +28,7 @@ calculate_blended_weight_kin <- function(main_estimate) {
 
   ## estimate covariance between neighbor and kin estimates
   cov <- main_estimate %>%
-    select(type, death_rate, bootstrap_iter) %>%
+    dplyr::select(type, death_rate, bootstrap_iter) %>%
     pivot_wider(values_from = death_rate, names_from = type) %>%
     summarize(covariance = cov(kin, neighbor)) %>%
     pull(covariance)

@@ -1,0 +1,79 @@
+---
+title: "Data Cleaning"
+author: Casey Breen
+---
+
+Summary: This script cleans the original network survey data from REACH Initiatives. These network survival data were organized into two separate files: 
+
+* Survey dataframe: an individual-level dataframe, where each row is a survey respondents 
+* Death dataframe: a death-level dataframe, where each row is a specific death 
+
+
+```{r}
+## library packages 
+library(tidyverse)
+library(data.table)
+library(gt)
+library(janitor)
+library(here)
+
+## read in data 
+survey_df <- readxl::read_xlsx(path = here("data", "raw_data", "2023-09-08", "network_survey_2023-08-16.xlsx"), sheet = "main_networksurvival")
+death_df <- readxl::read_xlsx(here("data", "raw_data", "2023-09-08", "network_survey_2023-08-16.xlsx"), sheet = "deaths")
+```
+
+
+## Clean data - network survey df 
+
+Drop missing data (and count number of  for pre-registration)
+
+```{r}
+## Number respondents who not give consent / shouldn't be in dataset (Drop, N = 68)
+survey_df %>% 
+  filter(consent != "yes")
+
+## Number respondents with missing household or neighbor (Drop, N = 2)
+survey_df %>% 
+  filter(consent == "yes") %>% 
+  filter(is.na(num_total_hh_neighbour))
+
+## Total number of kin (Drop, N = 18)
+survey_df %>% 
+  filter(consent == "yes") %>% 
+  filter(is.na(num_total_kin))
+
+## Drop missing values 
+survey_df_clean <- survey_df %>% 
+  filter(consent == "yes") %>% 
+  filter(!is.na(num_total_hh_neighbour)) %>% 
+  filter(!is.na(num_total_kin))
+
+## Create new start month variable 
+survey_df_clean <- survey_df_clean %>% 
+  mutate(start_month = lubridate::floor_date(x = as_date(start), unit = "month"))
+```
+
+## Clean data - death DF 
+
+```{r}
+## Drop deaths without valid date (Drop, N = 5) 
+death_df_clean <- death_df %>% 
+  filter(!date_join_final_death %in% c(44927, 45061, 44928, 44951, 45030))
+
+## Rename variables and create death month variable
+death_df_clean <- death_df_clean %>% 
+  mutate(uuid_ki = uuid_ki4) %>% 
+  mutate(zone_de_sante_name = case_when(
+    death_zs == 746101 ~ "Kalemie",           
+    death_zs == 746601 ~ "Nyunzu",            
+    death_zs == 746102 ~ "Nyemba")) %>% 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) 
+```
+
+## write out files 
+```{r}
+## Write out csv files 
+write_csv(survey_df_clean, here("data", "clean_data", "survey_df_cleaned_dec3_2023.csv"))
+write_csv(death_df_clean, here("data", "clean_data", "death_df_cleaned_dec3_2023.csv"))
+```
+

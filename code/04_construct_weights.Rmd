@@ -3,7 +3,7 @@ title: "Generate weights - raking"
 author: "Casey Breen" 
 ---
 
-Generate weights 
+Generate weights - estimation code 
 
 ```{r}
 ## packages 
@@ -109,7 +109,7 @@ Use pre-written poststratification function
 
 ```{r}
 ## poststratification weights 
-survey_df_weighted <- networksurvival::calculate_poststrat_weights(weighting_targets = weighting_targets, survey_df = survey_df_weighted) 
+survey_df_weighted <- networksurvival::generate_poststrat_weights(weighting_targets = weighting_targets, survey_df = survey_df_weighted) 
 ```
 
 ## weights 

@@ -20,7 +20,7 @@ library(cowplot)
 
 ```{r}
 ## read in shapefile 
-shapefile <- sf::read_sf(here("data/weighting/geography/rdc_zones-de-sante"))
+shapefile <- sf::read_sf(here("data", "weighting", "geography", "rdc_zones-de-sante"))
 
 nyemba_shapefile <- shapefile %>% 
   filter(PROVINCE == "Tanganyika" & Nom == "Nyemba")
@@ -35,7 +35,7 @@ nyunzu_shapefile <- shapefile %>%
 
 ```{r}
 ## Read in drc shapefiles 
-drc_shapefiles <- sf::read_sf(here("data/weighting/geography/rdc_aires-de-sante"))
+drc_shapefiles <- sf::read_sf(here("data", "weighting", "geography", "rdc_aires-de-sante"))
 
 # Filter to aires-de-santes in Tanganyika
 tanganyika_shapefiles <- drc_shapefiles %>% 

@@ -3,12 +3,7 @@
 #' This function computes exposure and death estimates for kin and neighbors, incorporating
 #' options for bootstrapping, monthly calculations, and subpopulation analysis. It also calculates a
 #' blended estimate combining kin and neighbor data, weighted by a given factor.
-#'
-#' The function allows for a comprehensive analysis of mortality data by combining
-#' different estimation methods (kin and neighbor) and enabling advanced techniques
-#' like bootstrapping for robustness. The blended result, weighted by the specified
-#' kin weight, offers a more nuanced understanding of mortality rates.
-#'
+#'#'
 #' @param death_df data.frame with death records.
 #' @param survey_df data.frame with survey data.
 #' @param bootstrap numeric, number of bootstrap samples to generate; NA for no bootstrapping.
@@ -57,7 +52,7 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
         death_rate_unweighted = (kin_result$death_rate_unweighted * blended_weight_kin + neighbor_result$death_rate_unweighted * (1 - blended_weight_kin)),
         type = "blended"
       ) %>%
-      select(-n_deaths, -n_deaths_unweighted, -exposure, -exposure_unweighted)
+      dplyr::select(-n_deaths, -n_deaths_unweighted, -exposure, -exposure_unweighted)
 
     # HH estimate
     household_result <- estimate_hh_func(survey_df = survey_df, death_df = death_df, weight_col = weight_col, subpop = subpopulation) %>%
@@ -76,7 +71,7 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
 
       ## bootstrap survey
       boot_survey_df <- survey_df %>%
-        select(-!!weight_col) %>%
+        dplyr::select(-!!weight_col) %>%
         group_by(zone_de_sante_name, gender, start_month) %>%
         sample_n(size = n(), replace = TRUE) %>%
         ungroup()
@@ -87,7 +82,7 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
         rename(count_column = n)
 
       boot_death_df_final <- death_df %>%
-        select(-!!weight_col) %>%
+        dplyr::select(-!!weight_col) %>%
         inner_join(count_ids, by = "uuid_ki") %>%
         ungroup() %>%
         slice(unlist(mapply(rep, 1:n(), count_column)))
@@ -127,7 +122,7 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
           death_rate_unweighted = (kin_result$death_rate_unweighted * blended_weight_kin + neighbor_result$death_rate_unweighted * (1 - blended_weight_kin)),
           type = "blended"
         ) %>%
-        select(-n_deaths, -n_deaths_unweighted, -exposure, -exposure_unweighted)
+        dplyr::select(-n_deaths, -n_deaths_unweighted, -exposure, -exposure_unweighted)
 
       # Store results
       results_list[[paste("kin", i, sep = "_")]] <- kin_result

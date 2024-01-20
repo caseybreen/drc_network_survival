@@ -26,15 +26,15 @@ library(cowplot)
 library(xtable)
 
 ## read in survey df
-survey_df <- read_csv(here("data/clean_data/survey_df_cleaned_weighted_dec3_2023.csv")) %>% 
+survey_df <- read_csv(here("data", "clean_data", "survey_df_cleaned_weighted_dec3_2023.csv")) %>% 
   filter(zone_de_sante_name != "Nyunzu")
 
 ## read in death df 
-death_df <- read_csv(here("data/clean_data/death_df_cleaned_weighted_dec3_2023.csv")) %>% 
+death_df <- read_csv(here("data", "clean_data", "death_df_cleaned_weighted_dec3_2023.csv")) %>% 
   filter(zone_de_sante_name != "Nyunzu")
 
 ## read in weighting targets 
-weighting_targets <- read_csv(here("data/weighting/weighting_targets.csv"))
+weighting_targets <- read_csv(here("data", "weighting", "weighting_targets.csv"))
 
 ## set seed
 set.seed(1)
@@ -78,11 +78,11 @@ cdr_pooled_plot <- cdr_pooled_point_uncertainty %>%
   ggsci::scale_color_lancet() + 
   ylim(0, 1) + 
   theme_half_open(12) + 
-  theme(legend.position = "bottom") + 
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
   labs(x = "Network Tie", y = "Estimated Average Daily Crude Death Rate")
 
 ## save main estimate plot 
-ggsave(plot = cdr_pooled_plot, filename = here("figures/cdr_pooled_plot.png"), width = 6, height = 4)
+ggsave(plot = cdr_pooled_plot, filename = here("figures", "cdr_pooled_plot.png"), width = 6, height = 4)
 ```
 
 ## CDR disaggregated by health zone (Nyemba and Kalemie only, excluding Nyunzu)
@@ -112,10 +112,10 @@ cdr_pooled_heath_zones_plot <- cdr_pooled_hz_point_uncertainty %>%
   scale_color_viridis_d() +  
   ylim(0, 1) + 
   theme_cowplot() + 
-  theme(legend.position = "bottom") + 
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
   labs(x = "Zone de Sante", y = "Estimated Average Daily Crude Death Rate")
 
-ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures/cdr_pooled_heath_zones_plot.png"), width = 6, height = 4)
+ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures", "cdr_pooled_heath_zones_plot.png"), width = 7, height = 5)
 ```
 
 
@@ -148,10 +148,10 @@ cdr_monthly_plot <- cdr_monthly_point_uncertainty %>%
   ggsci::scale_color_lancet() +
   theme_cowplot() + 
   ylim(0, 1) +
-  theme(legend.position = "bottom") +
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
   labs(x = "Month of Death", y = "Crude Death Rate")
 
-ggsave(plot = cdr_monthly_plot, filename = here("figures/cdr_monthly_plot.png"), width = 6, height = 4)
+ggsave(plot = cdr_monthly_plot, filename = here("figures", "cdr_monthly_plot.png"), width = 6, height = 4)
 ```
 
 
@@ -173,7 +173,7 @@ cdr_monthly_hz_uncertainty <- cdr_monthly_hz_bootstrap %>%
 cdr_monthly_hz_point_uncertainty <- inner_join(cdr_monthly_hz_uncertainty, cdr_monthly_hz_point, by = c("type", "zone_de_sante_name", "month"))
 
 ## results monthly df 
-main_plot_monthly_zs <- cdr_monthly_hz_point_uncertainty %>% 
+cdr_monthly_hr_plot <- cdr_monthly_hz_point_uncertainty %>% 
  filter(month != as_date("2023-06-01")) %>% 
   filter(weights == "poststrat") %>% 
   ggplot(aes(x = month, color = type, shape = type, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
@@ -184,30 +184,33 @@ main_plot_monthly_zs <- cdr_monthly_hz_point_uncertainty %>%
   # geom_hline(yintercept = 1, linetype = "dashed") + 
   theme_cowplot() + 
   ylim(0, 1.1) + 
-  theme(legend.position = "bottom") + 
-  labs(x = "Month of Death", y = "Crude Death Rate") + 
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  labs(x = "Month of Death", y = "Estimate Average Daily Crude Death Rate") + 
   facet_wrap(~zone_de_sante_name, ncol = 1)
 
-ggsave(plot = main_plot_monthly_zs, filename = here("figures/main_plot_zs_monthly.png"), width = 6, height = 8)
+ggsave(plot = cdr_monthly_hr_plot, filename = here("figures", "cdr_monthly_hz_plot.png"), width = 6, height = 8)
 ```
 
 ## Preregistered estimates 
 
 
 ```{r}
+## combine cdr pooled 
 cdr_estimates <- bind_rows(cdr_pooled_point_uncertainty, cdr_pooled_hz_point_uncertainty) %>% 
   mutate(zone_de_sante_name = replace_na(zone_de_sante_name, "Pooled")) %>% 
   mutate(month = "Pooled")
 
+## combine cdr monthly 
 cdr_estimates_monthly <- bind_rows(cdr_monthly_hz_point_uncertainty, cdr_monthly_point_uncertainty) %>% 
     mutate(zone_de_sante_name = replace_na(zone_de_sante_name, "Pooled")) %>% 
   mutate(month = as.character(month))
 
+## dpylr::select columns for pre-registration 
 preregistered_estimates <- cdr_estimates %>% 
   bind_rows(cdr_estimates_monthly) %>% 
-  select(type, weights, zone_de_sante_name, month, death_rate, death_rate_lower, death_rate_upper)
+  dpylr::select(type, weights, zone_de_sante_name, month, death_rate, death_rate_lower, death_rate_upper)
 
 
-write_csv(preregistered_estimates, here("data", "preregistered_estimates", "preregistered_estiamtes.csv"))
+write_csv(preregistered_estimates, here("data", "preregistered_estimates", "preregistered_estimates.csv"))
 ```
 

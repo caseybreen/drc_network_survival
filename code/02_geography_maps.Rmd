@@ -1,9 +1,9 @@
 ---
-title: "Create geographic maps"
+title: "Create Tanganyika Province Map"
 author: Casey Breen
 ---
 
-Summary: Create a map of Tanganyika Province / study sites 
+Summary: Create a map of the continent of Africa, with an inset of Tanganyika Province
 
 ```{r}
 ## libraries 
@@ -11,11 +11,12 @@ library(tidyverse)
 library(data.table)
 library(sf)
 library(viridis)
+library(ggthemes)
 
 ## aires de sante 
-aires_data <- sf::read_sf(here("data/geography/rdc_aires-de-sante"))
+aires_data <- sf::read_sf(here("data", "geography", "rdc_aires-de-sante"))
 
-africa_map <- sf::read_sf(here("data/geography/Africa_Boundaries-shp"))
+africa_map <- sf::read_sf(here("data", "geography", "Africa_Boundaries-shp"))
 ```
 
 
@@ -53,7 +54,6 @@ kalemie_town_df <- data.frame(lon = kalemie_town_x, lat = kalemie_town_y)
 st_geometry(kalemie_town_df) <- st_sfc(st_point(c(kalemie_town_x, kalemie_town_y)), crs = st_crs(data))
 kalemie_town_df <- st_set_crs(kalemie_town_df, 4326)
 
-
 # Plotting
 tanganyika_prov_map <- ggplot() + 
   geom_sf(data = filter(tanganyika_aires_data, color_group != "Other"), aes(fill = color_group), alpha = 0.5, color = "black", linetype = "dotted", size = 0.2) +
@@ -67,7 +67,7 @@ tanganyika_prov_map <- ggplot() +
   theme_map() # + labs(title = "Tanganyika Province, focal health zones")
 
 ## ggplot 
-ggsave(plot = tanganyika_prov_map, filename = here("figures/tanganyika_map.png"), width = 10, height = 7)
+ggsave(plot = tanganyika_prov_map, filename = here("figures", "tanganyika_map.png"), width = 10, height = 7)
 ```
 
 ```{r}
@@ -108,7 +108,7 @@ tanganyika_prov_map <- ggplot() +
   labs(title = "Tanganyika Province, focal health zones")
 
 # Save the plot
-ggsave(plot = tanganyika_prov_map, filename = here("figures/tanganyika_map_no_nyunzu.png"), width = 10, height = 7)
+ggsave(plot = tanganyika_prov_map, filename = here("figures", "tanganyika_map_no_nyunzu.png"), width = 10, height = 7)
 
 ```
 
@@ -118,11 +118,11 @@ africa_map_continental <- africa_map %>%
                   filter(!NAME_0 %in% c("French Southern Territories", "Reunion", "Mayotte", "Seychelles", "Mauritius", "Cape Verde"))
 
 # Simplify the geometry
-# The dTolerance parameter controls the degree of simplification
+# The Tolerance parameter controls the degree of simplification
 africa_map_continental <- st_make_valid(africa_map_continental)
 africa_map_continental_simplified <- st_simplify(africa_map_continental, dTolerance = 0.01, preserveTopology = TRUE)
 
-## make drc map 
+## Make DRC map 
 africa_drc_map  <- ggplot() +
  geom_sf(data = africa_map_continental_simplified, alpha = 0.2, color = "black", fill = "grey", linetype = "dotted", size = 0.2) +
   geom_sf(data = tanganyika_aires_data, alpha = 1, color = "black", fill = "blue", linetype = "blank", size = 1) +
@@ -135,7 +135,7 @@ africa_drc_map  <- ggplot() +
 ## plot map 
 combined_geo_plot <- cowplot::plot_grid(africa_drc_map, tanganyika_prov_map, labels = "AUTO")
   
-ggsave(plot = combined_geo_plot, filename = here("figures/combined_geo_plot.png"), bg = "white", width = 14, height = 7)
+ggsave(plot = combined_geo_plot, filename = here("figures", "africa_with_tanganyika_inset.png"), bg = "white", width = 14, height = 7)
 
 ```
 
