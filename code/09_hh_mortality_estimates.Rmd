@@ -1,0 +1,160 @@
+---
+title: "Estimate mortality network method"
+author: Casey Breen
+---
+
+```{r}
+library(tidyverse)
+library(srvyr)
+library(cowplot)
+```
+
+
+
+```{r}
+## read in data 
+death_df <- readxl::read_xlsx(here("data", "raw_data", "2023-09-08", "mortality_survey_clean_2023-09-08.xlsx"), sheet = "deaths") %>% 
+  mutate(poststrat_weight = 1) 
+
+hh_df <- readxl::read_xlsx(here("data", "raw_data", "2023-09-08", "mortality_survey_clean_2023-09-08.xlsx"), sheet = "household") %>% 
+  mutate(poststrat_weight = 1) %>% 
+  filter(consent == "yes") 
+
+hh_df <- hh_df %>% 
+  mutate(zone_de_sante = zone_de_sante_name,
+         gender = case_when(
+           sexe_repondant == "f" ~ "f",
+           sexe_repondant == "m" ~ "m",
+           sexe_repondant == "f'" ~ "f"
+          ),
+         age_class = case_when(
+    age_repondant %in% c(18:24) ~ "[18,25)",
+    age_repondant %in% c(25:34) ~ "[25,35)",
+    age_repondant %in% c(33:44) ~ "[35,45)",
+    age_repondant %in% c(45:54) ~ "[45,55)",
+    age_repondant %in% c(55:64) ~ "[55,65)",
+    age_repondant %in% c(65:100) ~ "[65,100]"
+  )) %>% 
+  mutate(age_gender = paste0(gender, " | ", age_class))
+
+weighting_targets <- read_csv(here("data", "weighting", "weighting_targets.csv"))
+
+hh_df <- hh_df %>% 
+  mutate(num_total_kin = coalesce(a_total_kin, b_total_kin)) %>% 
+  mutate(num_total_kin = as.numeric(num_total_kin)) %>% 
+  mutate(a_sum_neighbours = coalesce(a_sum_neighbours, b_sum_neighbours)) %>% 
+  mutate(num_total_hh_neighbour = as.numeric(a_sum_neighbours) + as.numeric(num_hh)) %>% 
+  mutate(num_total_hh = as.numeric(num_hh)) %>% 
+  mutate(start_month = 1,
+         weight_poststrat = 1) %>% 
+  mutate(uuid_ki = uuid_col)
+ # mutate(uuid_ki = paste(zone_de_sante, cluster_no, hh_no, sep = "_"))
+
+death_df <- death_df %>%  
+    mutate(zone_de_sante = zone_de_sante_name) %>% 
+  mutate(`death_relationship/family` = is_kin,
+         `death_relationship/neighbour` = is_neighbour,
+         `death_relationship/household` = is_hh) %>% 
+ # mutate(uuid_ki = paste(zone_de_sante, cluster_no, hh_no, sep = "_")) %>% 
+  mutate(uuid_ki = `_submission__uuid`) %>% 
+  mutate(weight_poststrat = 1)
+```
+
+```{r}
+## estimate point estimates 
+cdr_pooled_hz_point <- networksurvival::compute_cdr_comprehensive(death_df = death_df, survey_df = hh_df, weight_col = "weight_poststrat", subpopulation = "zone_de_sante_name", bootstrap = NA)
+
+cdr_pooled_hz_boostrap <- networksurvival::compute_cdr_comprehensive(death_df = death_df, survey_df = hh_df, weight_col = "weight_poststrat", subpopulation = "zone_de_sante_name", bootstrap = 300)
+
+## zone de sante - Uncertainty Intervals
+cdr_pooled_hz_uncertainty <- cdr_pooled_hz_boostrap %>% 
+  group_by(zone_de_sante_name, type, weights) %>% 
+  summarize(death_rate_lower = quantile(death_rate, 0.025),
+            death_rate_upper = quantile(death_rate, 0.975)) 
+
+## perform join 
+cdr_pooled_hz_point_uncertainty <- inner_join(cdr_pooled_hz_point, cdr_pooled_hz_uncertainty, by = c("type", "zone_de_sante_name", "weights")) %>% 
+  mutate(survey = "hh")
+
+## visualize results 
+cdr_pooled_heath_zones_plot <- cdr_pooled_hz_point_uncertainty %>% 
+  filter(weights == "poststrat") %>% 
+#   filter(type != "household") %>% 
+  ggplot(aes(x = zone_de_sante_name, color = type, shape = type, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
+  geom_pointrange( position = position_dodge(.25), size = 1, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23, 24)) +
+  scale_color_viridis_d() +  
+  ylim(0, 1.2) + 
+  theme_cowplot() + 
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  labs(x = "Zone de Sante",
+       y = "Estimated Average Daily Crude Death Rate",
+       labs = "HH Survey Estimates")
+
+ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures", "cdr_pooled_heath_zones_plot.png"), width = 7, height = 5)
+```
+
+
+```{r}
+## read in survey df
+survey_df_nonprob <- read_csv(here("data", "clean_data", "survey_df_cleaned_weighted_dec3_2023.csv")) %>% 
+  filter(zone_de_sante_name != "Nyunzu")
+
+## read in death df 
+death_df_nonprob <- read_csv(here("data", "clean_data", "death_df_cleaned_weighted_dec3_2023.csv")) %>% 
+  filter(zone_de_sante_name != "Nyunzu")
+```
+
+
+```{r}
+## estimate point estimates 
+cdr_pooled_hz_point_nonprob <- networksurvival::compute_cdr_comprehensive(death_df = death_df_nonprob, survey_df = survey_df_nonprob, weight_col = "weight_poststrat", subpopulation = "zone_de_sante_name", bootstrap = NA)
+
+cdr_pooled_hz_boostrap_nonprob <- networksurvival::compute_cdr_comprehensive(death_df = death_df_nonprob, survey_df = survey_df_nonprob, weight_col = "weight_poststrat", subpopulation = "zone_de_sante_name", bootstrap = 300)
+
+## zone de sante - Uncertainty Intervals
+cdr_pooled_hz_uncertainty_nonprob <- cdr_pooled_hz_boostrap_nonprob %>% 
+  group_by(zone_de_sante_name, type, weights) %>% 
+  summarize(death_rate_lower = quantile(death_rate, 0.025),
+            death_rate_upper = quantile(death_rate, 0.975)) 
+
+## perform join 
+cdr_pooled_hz_point_uncertainty_nonprob <- inner_join(cdr_pooled_hz_point_nonprob, cdr_pooled_hz_uncertainty_nonprob, by = c("type", "zone_de_sante_name", "weights")) %>% 
+  mutate(survey = "quota")
+
+## visualize results 
+cdr_pooled_heath_zones_plot <- cdr_pooled_hz_point_uncertainty_nonprob %>% 
+  filter(weights == "poststrat") %>% 
+#   filter(type != "household") %>% 
+  ggplot(aes(x = zone_de_sante_name, color = type, shape = type, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
+  geom_pointrange( position = position_dodge(.25), size = 1, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23, 24)) +
+  scale_color_viridis_d() +  
+  ylim(0, 1.2) + 
+  theme_cowplot() + 
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  labs(x = "Zone de Sante",
+       y = "Estimated Average Daily Crude Death Rate",
+       labs = "HH Survey Estimates") 
+```
+
+
+
+```{r}
+cdr_pooled_hz_point_uncertainty_nonprob %>% 
+  bind_rows(cdr_pooled_hz_point_uncertainty) %>% 
+  filter(zone_de_sante_name %in% c("Kalemie", "Nyemba")) %>% 
+  filter(weights == "poststrat") %>% 
+#   filter(type != "household") %>% 
+  ggplot(aes(x = zone_de_sante_name, color = type, shape = survey, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
+  geom_pointrange(position = position_dodge(.3), size = 1, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23, 24)) +
+  scale_color_viridis_d() +  
+  ylim(0, 1.2) + 
+  theme_cowplot() + 
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  labs(x = "Zone de Sante",
+       y = "Estimated Average Daily Crude Death Rate",
+       labs = "HH Survey Estimates")
+```
+

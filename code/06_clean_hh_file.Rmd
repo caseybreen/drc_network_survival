@@ -1,0 +1,484 @@
+---
+title: "Format household survey"
+author: Casey Breen
+---
+
+
+Summary: Format household dataset 
+
+
+```{r}
+## library packages 
+library(tidyverse)
+library(here)
+```
+
+
+```{r}
+################################################################################
+#                                 HH Survey                                    #
+################################################################################
+
+# hh_data <- read_excel("data/hh_survey_data.xlsx", col_types = "text")
+hh_data <- readxl::read_excel(path = here("data", "clean_data", "hh_survey_data.xlsx"), col_types = "text") %>%
+  mutate(death = as.numeric(death))
+
+weight_HH <- readxl::read_xlsx(path = here("data", "clean_data", "weight_pop.xlsx"))
+
+hh_data <- hh_data %>%
+  mutate(
+    date_birth_date = lubridate::as_date(date_birth, format = "%m/%d/%Y"),
+    date_join_date = lubridate::as_date(date_join, format = "%m/%d/%Y"),
+    date_death_date = lubridate::as_date(date_death, format = "%m/%d/%Y"),
+    date_left_date = lubridate::as_date(date_left, format = "%m/%d/%Y"),
+    date_dc_date = lubridate::as_date(date_dc),
+    date_recall_date = lubridate::as_date(date_recall, format = "%m/%d/%Y")
+  )
+
+test_function <- function(df, start_date, end_date) {
+  if (is.null(start_date) | is.null(end_date)) {
+    stop("You must include a start_date, and end_date for subsetting the mortality data. Please include in a YYYY-MM-DD format.")
+  }
+  start_date <- format(lubridate::parse_date_time(start_date,
+    orders = "ymd", tz = ""
+  ), "%Y-%m-%d")
+  end_date <- format(lubridate::parse_date_time(end_date,
+    orders = "ymd", tz = ""
+  ), "%Y-%m-%d")
+  df <- df %>%
+    dplyr::mutate(date_join_date = lubridate::as_date(lubridate::parse_date_time(.data$date_join_date,
+      orders = "ymd", tz = ""
+    ))) %>%
+    filter(
+      is.na(date_join_date) |
+        lubridate::as_date(.data$date_join_date) <= format(lubridate::parse_date_time(end_date,
+          orders = "ymd", tz = ""
+        ), "%Y-%m-%d"),
+      is.na(date_birth_date) |
+        lubridate::as_date(.data$date_birth_date) <= format(lubridate::parse_date_time(end_date,
+          orders = "ymd", tz = ""
+        ), "%Y-%m-%d"),
+      is.na(date_left_date) |
+        lubridate::as_date(.data$date_left_date) >= format(lubridate::parse_date_time(start_date,
+          orders = "ymd", tz = ""
+        ), "%Y-%m-%d"),
+      is.na(date_death_date) |
+        lubridate::as_date(.data$date_death_date) >= format(lubridate::parse_date_time(start_date,
+          orders = "ymd", tz = ""
+        ), "%Y-%m-%d")
+    )
+
+  df <- df %>% dplyr::mutate(
+    age_years = as.numeric(.data$age_years),
+    date_dc_date = lubridate::as_date(lubridate::parse_date_time(end_date,
+      orders = "ymd", tz = ""
+    )), date_recall_date = lubridate::as_date(lubridate::parse_date_time(start_date,
+      orders = "ymd", tz = ""
+    )), date_dc_date = as.Date(date_dc_date),
+    date_recall_date = as.Date(date_recall_date), date_join_date = as.Date(date_join_date),
+    date_left_date = as.Date(date_left_date), date_birth_date = as.Date(date_birth_date),
+    date_death_date = as.Date(date_death_date),
+    join = ifelse(.data$date_recall_date - .data$date_join_date > 0, NA, join),
+    left = ifelse(.data$date_left_date - .data$date_dc_date >= 0, NA, left),
+    birth = ifelse(.data$date_recall_date - .data$date_birth_date > 0, NA, birth),
+    sub = .data$date_death_date - .data$date_dc_date,
+    death = ifelse(.data$date_death_date - .data$date_dc_date >= 0, NA, death)
+  )
+  df <- df %>% dplyr::mutate(
+    date_join_date = lubridate::as_date(lubridate::parse_date_time(date_join_date,
+      orders = "ymd", tz = ""
+    )), date_left_date = lubridate::as_date(lubridate::parse_date_time(date_left_date,
+      orders = "ymd", tz = ""
+    )), date_birth_date = lubridate::as_date(lubridate::parse_date_time(date_birth_date,
+      orders = "ymd", tz = ""
+    )), date_death_date = lubridate::as_date(lubridate::parse_date_time(date_death_date,
+      orders = "ymd", tz = ""
+    )), under_5 = ifelse(is.na(.data$age_years),
+      NA, ifelse(as.numeric(.data$age_years) < 5, 1, NA)
+    ),
+    under_5_pt = ifelse(is.na(.data$under_5), NA, ifelse(.data$under_5 ==
+      1, .data$person_time, NA))
+  )
+  df <- df %>%
+    dplyr::mutate(
+      age_years = as.numeric(.data$age_years),
+      person_time = as.numeric(.data$date_dc_date - .data$date_recall_date),
+      person_time = ifelse(is.na(.data$date_join_date), .data$person_time,
+        ifelse(!is.na(.data$date_death_date) & !is.na(death) &
+          !is.na(join), as.numeric(.data$date_death_date -
+          .data$date_join_date), ifelse(!is.na(.data$date_left_date) &
+          !is.na(.data$left) & !is.na(join), as.numeric(.data$date_left_date -
+          .data$date_join_date), ifelse(!is.na(join) &
+          is.na(left) & ## TO COMMENT OUT
+          is.na(birth) & ## TO COMMENT OUT
+          is.na(death), ## TO COMMENT OUT
+        as.numeric(.data$date_dc_date - .data$date_join_date),
+        .data$person_time
+        )))
+      ), person_time = ifelse(is.na(.data$date_left_date),
+        .data$person_time, ifelse(!is.na(.data$date_join_date) &
+          !is.na(join), .data$person_time, ifelse(!is.na(.data$left),
+          as.numeric(.data$date_left_date - .data$date_recall_date),
+          .data$person_time
+        ))
+      ), person_time = ifelse(is.na(.data$date_birth_date),
+        .data$person_time, ifelse(.data$date_birth_date <
+          .data$date_recall_date, .data$person_time, ifelse(!is.na(.data$date_death_date) &
+          !is.na(death) & !is.na(birth), as.numeric(.data$date_death_date -
+          .data$date_birth_date), ifelse(!is.na(.data$date_left_date) &
+          !is.na(.data$left) & !is.na(birth), as.numeric(.data$date_left_date -
+          .data$date_birth_date), ifelse(!is.na(birth),
+          as.numeric(.data$date_dc_date - .data$date_birth_date),
+          .data$person_time
+        ))))
+      ), person_time = ifelse(is.na(.data$date_death_date),
+        .data$person_time, ifelse(!is.na(.data$date_join_date) &
+          !is.na(join), .data$person_time, ifelse(!is.na(.data$date_birth_date) &
+          !is.na(birth), .data$person_time, ifelse(!is.na(death), as.numeric(.data$date_death_date - .data$date_recall_date),
+          .data$person_time
+        )))
+      )
+    ) %>%
+    mutate(person_time_new = case_when(
+      is.na(date_join_date) &
+        is.na(date_left_date) &
+        (is.na(date_birth_date) |
+          !is.na(date_birth_date) & year(date_birth_date) < 2023) &
+        is.na(date_death_date) ~ as.numeric(days(date_dc_date - date_recall_date)) / 86400,
+      (!is.na(date_join_date) & date_join_date < date_recall_date) &
+        is.na(date_left_date) &
+        is.na(date_death_date) ~ as.numeric(days(date_dc_date - date_recall_date)) / 86400,
+      (!is.na(date_join_date) & date_join_date >= date_recall_date) &
+        is.na(date_left_date) &
+        is.na(date_death_date) ~ as.numeric(days(date_dc_date - date_join_date)) / 86400,
+      (!is.na(date_join_date) & date_join_date < date_recall_date) &
+        (!is.na(date_left_date) & date_left_date >= date_dc_date) & # chaged >=
+        is.na(date_death_date) ~ as.numeric(days(date_dc_date - date_recall_date)) / 86400,
+      (!is.na(date_join_date) & date_join_date >= date_recall_date) &
+        (!is.na(date_left_date) & date_left_date >= date_dc_date) & # chaged >=
+        is.na(date_death_date) ~ as.numeric(days(date_dc_date - date_join_date)) / 86400,
+      (!is.na(date_join_date) & date_join_date < date_recall_date) &
+        (!is.na(date_left_date) & date_left_date < date_dc_date) &
+        is.na(date_death_date) ~ as.numeric(days(date_left_date - date_recall_date)) / 86400,
+      (!is.na(date_join_date) & date_join_date >= date_recall_date) &
+        (!is.na(date_left_date) & date_left_date < date_dc_date) &
+        is.na(date_death_date) ~ as.numeric(days(date_left_date - date_join_date)) / 86400,
+      (!is.na(date_join_date) & date_join_date >= date_recall_date) &
+        is.na(date_left_date) &
+        (!is.na(date_death_date) & date_death_date > date_dc_date) ~ as.numeric(days(date_dc_date - date_join_date)) / 86400,
+      (!is.na(date_join_date) & date_join_date < date_recall_date) &
+        is.na(date_left_date) &
+        (!is.na(date_death_date) & date_death_date > date_dc_date) ~ as.numeric(days(date_dc_date - date_recall_date)) / 86400,
+      (!is.na(date_join_date) & date_join_date < date_recall_date) &
+        is.na(date_left_date) &
+        (!is.na(date_death_date) & date_death_date <= date_dc_date) ~ as.numeric(days(date_death_date - date_recall_date)) / 86400,
+      (!is.na(date_join_date) & date_join_date >= date_recall_date) &
+        is.na(date_left_date) &
+        (!is.na(date_death_date) & date_death_date <= date_dc_date) ~ as.numeric(days(date_death_date - date_join_date)) / 86400,
+      is.na(date_join_date) &
+        (!is.na(date_left_date) & date_left_date > date_dc_date) &
+        (is.na(date_birth_date) | year(date_birth_date) < 2023) ~ as.numeric(days(date_dc_date - date_recall_date)) / 86400,
+      is.na(date_join_date) &
+        (!is.na(date_left_date) & date_left_date <= date_dc_date) &
+        (is.na(date_birth_date) | year(date_birth_date) < 2023) ~ as.numeric(days(date_left_date - date_recall_date)) / 86400,
+      is.na(date_join_date) &
+        is.na(date_death_date) &
+        (!is.na(date_left_date) & date_left_date <= date_dc_date) &
+        (!is.na(date_birth_date) & year(date_birth_date) == 2023 & date_birth_date < date_recall_date) ~ as.numeric(days(date_left_date - date_recall_date)) / 86400,
+      is.na(date_join_date) &
+        is.na(date_death_date) &
+        (!is.na(date_left_date) & date_left_date <= date_dc_date) &
+        (!is.na(date_birth_date) & year(date_birth_date) == 2023 & date_birth_date >= date_recall_date) ~ as.numeric(days(date_left_date - date_birth_date)) / 86400,
+      is.na(date_join_date) &
+        is.na(date_death_date) &
+        (!is.na(date_left_date) & date_left_date > date_dc_date) &
+        (!is.na(date_birth_date) & year(date_birth_date) == 2023 & date_birth_date >= date_recall_date) ~ as.numeric(days(date_dc_date - date_birth_date)) / 86400,
+      is.na(date_join_date) &
+        is.na(date_death_date) &
+        (!is.na(date_left_date) & date_left_date > date_dc_date) &
+        (!is.na(date_birth_date) & year(date_birth_date) == 2023 & date_birth_date < date_recall_date) ~ as.numeric(days(date_dc_date - date_recall_date)) / 86400,
+      (!is.na(date_birth_date) & year(date_birth_date) == 2023 & date_birth_date < date_recall_date) &
+        is.na(date_death_date) ~ as.numeric(days(date_dc_date - date_recall_date)) / 86400,
+      (!is.na(date_birth_date) & year(date_birth_date) == 2023 & date_birth_date < date_recall_date) &
+        is.na(date_death_date) ~ as.numeric(days(date_dc_date - date_recall_date)) / 86400,
+      (!is.na(date_birth_date) & year(date_birth_date) == 2023 & date_birth_date >= date_recall_date) &
+        is.na(date_death_date) ~ as.numeric(days(date_dc_date - date_birth_date)) / 86400,
+      (!is.na(date_birth_date) & year(date_birth_date) == 2023 & date_birth_date < date_recall_date) &
+        (!is.na(date_death_date) & date_death_date > date_dc_date) ~ as.numeric(days(date_dc_date - date_recall_date)) / 86400,
+      (!is.na(date_birth_date) & year(date_birth_date) == 2023 & date_birth_date >= date_recall_date) &
+        (!is.na(date_death_date) & date_death_date > date_dc_date) ~ as.numeric(days(date_dc_date - date_birth_date)) / 86400,
+      (!is.na(date_birth_date) & year(date_birth_date) == 2023 & date_birth_date >= date_recall_date) &
+        (!is.na(date_death_date) & date_death_date <= date_dc_date) ~ as.numeric(days(date_death_date - date_birth_date)) / 86400,
+      (!is.na(date_birth_date) & year(date_birth_date) == 2023 & date_birth_date < date_recall_date) &
+        (!is.na(date_death_date) & date_death_date <= date_dc_date) ~ as.numeric(days(date_death_date - date_recall_date)) / 86400,
+      is.na(date_join_date) &
+        is.na(date_left_date) &
+        (!is.na(date_death_date) & date_death_date > date_dc_date) ~ as.numeric(days(date_dc_date - date_recall_date)) / 86400,
+      (!is.na(date_death_date) & date_death_date <= date_dc_date) ~ as.numeric(days(date_death_date - date_recall_date)) / 86400,
+      TRUE ~ NA
+    ))
+  print("date_recall_date, and date_dc_date columns have been modified to reflect the specified recall period.")
+  return(df)
+}
+
+
+hh_data_janfeb <- test_function(hh_data, "2023-01-01", "2023-03-01") %>%
+  filter(!is.na(sex)) %>%
+  mutate(
+    sex = case_when(
+      sex == "1" ~ "m",
+      sex == "2" ~ "f"
+    ),
+    under_5_pt = ifelse(under_5 == 1, person_time_new, NA),
+    death_under_5 = ifelse(under_5 == 1 & death == "1", 1, NA)
+  )
+hh_data_marapr <- test_function(hh_data, "2023-03-01", "2023-05-01") %>%
+  filter(!is.na(sex)) %>%
+  mutate(
+    sex = case_when(
+      sex == "1" ~ "m",
+      sex == "2" ~ "f"
+    ),
+    under_5_pt = ifelse(under_5 == 1, person_time_new, NA),
+    death_under_5 = ifelse(under_5 == 1 & death == "1", 1, NA)
+  )
+hh_data_mayjun <- test_function(hh_data, "2023-05-01", "2023-06-30") %>%
+  filter(!is.na(sex)) %>%
+  mutate(
+    sex = case_when(
+      sex == "1" ~ "m",
+      sex == "2" ~ "f"
+    ),
+    under_5_pt = ifelse(under_5 == 1, person_time_new, NA),
+    death_under_5 = ifelse(under_5 == 1 & death == "1", 1, NA)
+  )
+
+################### TIDYING ####################################################
+# Remove some data that do not need to be included
+
+sex_NA <- hh_data %>%
+  filter(is.na(sex))
+
+# 11 observation with wrong data to be removed
+# fix the sex to m/f
+
+hh_data <- hh_data %>%
+  filter(!is.na(sex)) %>%
+  mutate(sex = case_when(
+    sex == "1" ~ "m",
+    sex == "2" ~ "f"
+  ))
+
+## fix dates to class date
+hh_data <- hh_data %>%
+  mutate(
+    date_recall = lubridate::as_date(date_recall, format = "%m/%d/%Y"),
+    date_dc = lubridate::as_date(date_dc),
+    date_birth = lubridate::as_date(date_birth, format = "%m/%d/%Y"),
+    date_left = lubridate::as_date(date_left, format = "%m/%d/%Y"),
+    date_join = lubridate::as_date(date_join, format = "%m/%d/%Y"),
+    date_death = lubridate::as_date(date_death, format = "%m/%d/%Y")
+  )
+
+
+## drop born/join after 29th of June 2023 to match with informant
+
+hh_data <- hh_data %>%
+  filter(!date_join > "2023-06-29" | is.na(date_join)) %>%
+  filter(!date_birth > "2023-06-29" | is.na(date_birth)) %>%
+  mutate(
+    death = if_else(date_death > "2023-06-29", NA, death),
+    # date_death = if_else(date_death>"2023-06-29",NA,date_death),
+    left = if_else(date_left > "2023-06-29", NA, left),
+    # date_left = if_else(date_left >"2023-06-29",NA,date_left)
+  )
+
+## Calculate new person_time
+
+# write_xlsx(hh_data_marapr, "hh_data.xlsx")
+hh_data <- hh_data %>%
+  mutate(person_time_new = case_when(
+    is.na(date_join) &
+      is.na(date_left) &
+      (is.na(date_birth) |
+        !is.na(date_birth) & year(date_birth) < 2023) &
+      is.na(date_death) ~ as.numeric(days(lubridate::as_date("2023-06-30") - lubridate::as_date("2023-01-01"))) / 86400,
+    !is.na(date_join) &
+      is.na(date_left) &
+      is.na(date_death) ~ as.numeric(days(lubridate::as_date("2023-06-30") - date_join)) / 86400,
+    !is.na(date_join) &
+      (!is.na(date_left) & date_left > lubridate::as_date("2023-06-30")) &
+      is.na(date_death) ~ as.numeric(days(lubridate::as_date("2023-06-30") - date_join)) / 86400,
+    !is.na(date_join) &
+      (!is.na(date_left) & date_left < lubridate::as_date("2023-06-30")) &
+      is.na(date_death) ~ as.numeric(days(date_left - date_join)) / 86400,
+    !is.na(date_join) &
+      is.na(date_left) &
+      (!is.na(date_death) & date_death > lubridate::as_date("2023-06-30")) ~ as.numeric(days(lubridate::as_date("2023-06-30") - date_join)) / 86400,
+    !is.na(date_join) &
+      is.na(date_left) &
+      (!is.na(date_death) & date_death <= lubridate::as_date("2023-06-30")) ~ as.numeric(days(date_death - date_join)) / 86400,
+    is.na(date_join) &
+      (!is.na(date_left) & date_left > lubridate::as_date("2023-06-30")) &
+      (is.na(date_birth) | year(date_birth) < 2023) ~ as.numeric(days(lubridate::as_date("2023-06-30") - lubridate::as_date("2023-01-01"))) / 86400,
+    is.na(date_join) &
+      (!is.na(date_left) & date_left <= lubridate::as_date("2023-06-30")) &
+      (is.na(date_birth) | year(date_birth) < 2023) ~ as.numeric(days(date_left - lubridate::as_date("2023-01-01"))) / 86400,
+    is.na(date_join) &
+      (!is.na(date_left) & date_left <= lubridate::as_date("2023-06-30")) &
+      (!is.na(date_birth) & year(date_birth) == 2023) ~ as.numeric(days(date_left - date_birth)) / 86400,
+    (!is.na(date_birth) & year(date_birth) == 2023 & date_birth < lubridate::as_date("2023-01-01")) &
+      is.na(date_death) ~ as.numeric(days(lubridate::as_date("2023-06-30") - lubridate::as_date("2023-01-01"))) / 86400,
+    (!is.na(date_birth) & year(date_birth) == 2023 & date_birth < lubridate::as_date("2023-01-01")) &
+      is.na(date_death) ~ as.numeric(days(lubridate::as_date("2023-06-30") - lubridate::as_date("2023-01-01"))) / 86400,
+    (!is.na(date_birth) & year(date_birth) == 2023 & date_birth >= lubridate::as_date("2023-01-01")) &
+      is.na(date_death) ~ as.numeric(days(lubridate::as_date("2023-06-30") - date_birth)) / 86400,
+    (!is.na(date_birth) & year(date_birth) == 2023 & date_birth < lubridate::as_date("2023-01-01")) &
+      (!is.na(date_death) & date_death > lubridate::as_date("2023-06-30")) ~ as.numeric(days(lubridate::as_date("2023-06-30") - lubridate::as_date("2023-01-01"))) / 86400,
+    (!is.na(date_birth) & year(date_birth) == 2023 & date_birth >= lubridate::as_date("2023-01-01")) &
+      (!is.na(date_death) & date_death > lubridate::as_date("2023-06-30")) ~ as.numeric(days(lubridate::as_date("2023-06-30") - date_birth)) / 86400,
+    (!is.na(date_birth) & year(date_birth) == 2023 & date_birth >= lubridate::as_date("2023-01-01")) &
+      (!is.na(date_death) & date_death <= lubridate::as_date("2023-06-30")) ~ as.numeric(days(date_death - date_birth)) / 86400,
+    (!is.na(date_birth) & year(date_birth) == 2023 & date_birth < lubridate::as_date("2023-01-01")) &
+      (!is.na(date_death) & date_death <= lubridate::as_date("2023-06-30")) ~ as.numeric(days(date_death - lubridate::as_date("2023-01-01"))) / 86400,
+    (!is.na(date_birth) & year(date_birth) == 2023) &
+      (!is.na(date_left) & date_left > lubridate::as_date("2023-06-30")) &
+      is.na(date_death) &
+      is.na(date_join) ~ as.numeric(days(lubridate::as_date("2023-06-30") - date_birth)) / 86400,
+    is.na(date_join) &
+      is.na(date_left) &
+      (!is.na(date_death) & date_death > lubridate::as_date("2023-06-30")) ~ as.numeric(days(lubridate::as_date("2023-06-30") - lubridate::as_date("2023-01-01"))) / 86400,
+    (!is.na(date_death) & date_death <= lubridate::as_date("2023-06-30")) ~ as.numeric(days(date_death - lubridate::as_date("2023-01-01"))) / 86400,
+    TRUE ~ NA
+  ))
+
+
+
+## Conclusion that the age_years is fine and no need to change anything
+## final touches
+
+final_hh_data <- hh_data %>%
+  mutate(
+    age_group = cut(as.numeric(age_years),
+      breaks = c(-1, 4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59, 64, 69, 74, 79, 84, Inf),
+      labels = c(
+        "0-4", "5-9", "10-14", "15-19",
+        "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59",
+        "60-64", "65-69", "70-74", "75-79", "80-84", "85+"
+      )
+    ),
+    death_under5 = ifelse(age_group == "0-4" & death == 1, 1, NA),
+    person_time_new_under5 = ifelse(age_group == "0-4", person_time_new, NA)
+  )
+
+
+n <- final_hh_data %>%
+  group_by(admin2) %>%
+  summarise(sample = n())
+
+weight_HH <- weight_HH %>%
+  mutate(population = as.numeric(population)) %>%
+  group_by(ZS_PCODE) %>%
+  summarise(population = sum(population)) %>%
+  rename(admin2 = "ZS_PCODE") %>%
+  mutate(admin2 = as.character(admin2)) %>%
+  left_join(n, by = "admin2") %>%
+  # rowwise() %>%
+  mutate(weights = (population / sum(population)) / (sample / sum(sample))) %>%
+  dplyr::select(admin2, weights)
+
+## add on hh final
+final_hh_data <- final_hh_data %>%
+  mutate(death = case_when(
+    is.na(death) ~ 0,
+    TRUE ~ death
+  )) %>%
+  mutate(death_under5 = case_when(
+    is.na(death_under5) ~ 0,
+    TRUE ~ death_under5
+  )) %>%
+  mutate(person_time_new_under5 = case_when(
+    is.na(person_time_new_under5) ~ 0,
+    TRUE ~ person_time_new_under5
+  ))
+
+## split into bins
+final_hh_data <- final_hh_data %>%
+  mutate(
+    age_group = cut(as.numeric(age_years),
+                    breaks = c(-1, 4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59, 64, 69, 74, 79, 84, Inf),
+                    labels = c(
+                      "0-4", "5-9", "10-14", "15-19",
+                      "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59",
+                      "60-64", "65-69", "70-74", "75-79", "80-84", "85+"
+                    )
+    ))
+```
+
+
+```{r}
+final_hh_data <- final_hh_data %>%
+  left_join(weight_HH, by = "admin2") %>%
+  mutate(health_zone = case_when(
+    admin2 == "746101" ~  "Kalemie",
+    admin2 == "746102" ~ "Nyemba",
+    admin2 == "746601" ~ "Nyunzu"
+  ))
+
+# hh_data <- read_excel("data/hh_survey_data.xlsx", col_types = "text")
+write_csv(final_hh_data, path = here("data", "clean_data", "hh_survey_data_clean.csv")) 
+```
+
+
+
+
+```{r}
+hh_data_janfeb <- hh_data_janfeb %>%
+  mutate(
+    age_group = cut(as.numeric(age_years),
+      breaks = c(-1, 4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59, 64, 69, 74, 79, 84, Inf),
+      labels = c(
+        "0-4", "5-9", "10-14", "15-19",
+        "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59",
+        "60-64", "65-69", "70-74", "75-79", "80-84", "85+"
+      )
+    ),
+    death_under5 = ifelse(age_group == "0-4" & death == 1, 1, NA),
+    person_time_new_under5 = ifelse(age_group == "0-4", person_time_new, NA)
+  ) %>%
+  left_join(weight_HH, by = "admin2")
+
+
+hh_data_marapr <- hh_data_marapr %>%
+  mutate(
+    age_group = cut(as.numeric(age_years),
+      breaks = c(-1, 4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59, 64, 69, 74, 79, 84, Inf),
+      labels = c(
+        "0-4", "5-9", "10-14", "15-19",
+        "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59",
+        "60-64", "65-69", "70-74", "75-79", "80-84", "85+"
+      )
+    ),
+    death_under5 = ifelse(age_group == "0-4" & death == 1, 1, NA),
+    person_time_new_under5 = ifelse(age_group == "0-4", person_time_new, NA)
+  ) %>%
+  left_join(weight_HH, by = "admin2")
+
+
+hh_data_mayjun <- hh_data_mayjun %>%
+  mutate(
+    age_group = cut(as.numeric(age_years),
+      breaks = c(-1, 4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59, 64, 69, 74, 79, 84, Inf),
+      labels = c(
+        "0-4", "5-9", "10-14", "15-19",
+        "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59",
+        "60-64", "65-69", "70-74", "75-79", "80-84", "85+"
+      )
+    ),
+    death_under5 = ifelse(age_group == "0-4" & death == 1, 1, NA),
+    person_time_new_under5 = ifelse(age_group == "0-4", person_time_new, NA)
+  ) %>%
+  left_join(weight_HH, by = "admin2")
+
+```
+

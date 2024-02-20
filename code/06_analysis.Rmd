@@ -1,0 +1,171 @@
+---
+title: "R Notebook"
+author: Casey Breen
+---
+
+
+```{r}
+## library packages 
+library(tidyverse)
+library(data.table)
+library(gt)
+library(janitor)
+library(here)
+
+## read in data 
+survey_df <- readxl::read_xlsx(path = here("data", "raw_data", "2023-09-08", "mortality_survey_clean_2023-09-08.xlsx"), sheet = "roster")
+death_df <- readxl::read_xlsx(here("data", "raw_data", "2023-09-08", "mortality_survey_clean_2023-09-08.xlsx"), sheet = "deaths")
+hh_df <- readxl::read_xlsx(here("data", "raw_data", "2023-09-08", "mortality_survey_clean_2023-09-08.xlsx"), sheet = "household")
+neighbors_df <- readxl::read_xlsx(here("data", "raw_data", "2023-09-08", "mortality_survey_clean_2023-09-08.xlsx"), sheet = "neighbours") %>% 
+  mutate(tot_neighbour = as.numeric(tot_neighbour)) %>% 
+  mutate(neighbour_deaths = as.numeric(neighbour_deaths))
+
+```
+
+
+```{r}
+neighbors_df %>% 
+  filter(tot_neighbour != 0) %>% 
+  # group_by(pos_neighbour) %>%
+  dplyr::summarize(sum(tot_neighbour, na.rm = T))
+```
+
+
+```{r}
+neighbors_df %>% 
+  mutate(neighbour_deaths = as.numeric(neighbour_deaths)) %>% 
+  summarize(sum(neighbour_deaths, na.rm = T)) 
+```
+
+
+```{r}
+death_df %>%
+  filter(is_hh == 1) %>% 
+  mutate(month = lubridate::month(final_date_death)) %>%
+  ggplot(aes(x = month)) + 
+  geom_histogram(binwidth = 1, color = "black", fill = "grey") + 
+  cowplot::theme_cowplot() +
+  scale_x_continuous(breaks = 1:12, labels = month.abb) 
+```
+
+```{r}
+neighbors_df %>% 
+  filter(tot_neighbour != 0) %>% 
+  group_by(pos_neighbour) %>%
+  dplyr::summarize(avg_deaths_reported = mean(neighbour_deaths, na.rm = T))
+```
+
+```{r}
+death_df %>% 
+  count(is_hh, is_neighbour, is_kin)
+```
+
+```{r}
+death_df %>% 
+  group_by(is_hh) %>%
+  count(calc_final_age_years_died < 5)
+```
+
+
+```{r}
+death_df %>% 
+  filter(is_hh == 1) %>% 
+    mutate(month = lubridate::month(final_date_death)) %>% 
+  count(month)
+```
+
+
+```{r}
+death_df %>%
+  mutate(age_died_years = as.numeric(age_died_years)) %>% 
+  filter(is_hh == 1) %>% 
+  mutate(under_18 = case_when(
+    age_died_years <= 18 ~ 1,
+    TRUE ~ 0
+  )) %>% 
+  summarize(prop_under_18 = round(mean(under_18, na.rm = T), 2))
+
+
+death_df %>%
+  mutate(age_died_years = as.numeric(age_died_years)) %>% 
+  group_by(is_neighbour, is_hh, is_kin) %>% 
+  mutate(under_18 = case_when(
+    age_died_years <= 18 ~ 1,
+    TRUE ~ 0
+  )) %>% 
+  summarize(prop_under_18 = round(mean(under_18, na.rm = T), 2),
+            n = n())
+```
+
+
+```{r}
+death_df %>%
+  mutate(age_died_years = as.numeric(age_died_years)) %>% 
+  filter(is_hh == 1) %>% 
+  mutate(under_18 = case_when(
+    age_died_years <= 18 ~ 1,
+    TRUE ~ 0
+  )) %>% 
+  summarize(prop_under_18 = round(mean(under_18, na.rm = T), 2))
+```
+
+
+
+
+```{r}
+hh_deaths <- death_df %>% 
+  filter(is_hh == 1)
+
+hh_deaths <- hh_deaths %>% 
+  mutate(death_age = as.numeric(calc_final_age_years_died)) 
+
+hh_deaths %>% 
+  ggplot(aes(x = death_age)) + 
+  geom_histogram()
+```
+
+```{r}
+survey_df <- survey_df %>% 
+  mutate(age_years = as.numeric(age_years)) %>% 
+  mutate(age_years_bin = cut(age_years, breaks = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, Inf), 
+                    labels = c("0-5", "5-10", "10-15", "15-20", "20-25", "25-30", "30-35", "35-40", "40-45", "45-50", "50-55", "55-60", "60-65", "65-70", "70-75", "75-80", "80+"),
+                    right = FALSE))
+```
+
+
+```{r}
+hh_deaths <- hh_deaths %>%
+  mutate(death_age_bin = cut(death_age, breaks = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, Inf), 
+                    labels = c("0-5", "5-10", "10-15", "15-20", "20-25", "25-30", "30-35", "35-40", "40-45", "45-50", "50-55", "55-60", "60-65", "65-70", "70-75", "75-80", "80+"),
+                    right = FALSE))
+
+hh_deaths %>%
+  count(death_age_bin)
+```
+
+```{r}
+exposure_count <- survey_df %>% 
+  count(age_years_bin)
+
+death_count <- hh_deaths %>%
+  count(death_age_bin)
+
+exposure_count %>% 
+  inner_join(death_count, by = c("age_years_bin" = "death_age_bin")) %>% 
+  mutate(cdr = n.y / (n.x * 260) * 10000) %>% 
+  mutate(nMx = (n.y / n.x) * (365/260)) %>% 
+  mutate(nqx = 5 * nMx / (1 + (5 - 2.5) * nMx))
+
+```
+
+
+```{r}
+hh_deaths %>% 
+  filter(zone_de_sante_name %in% c("Kalemie", "Nyunzu")) %>% 
+  count(is_hh)
+
+
+hh_df %>% filter(zone_de_sante_name %in% c("Kalemie", "Nyunzu")) %>% summarize(sum(num_hh, na.rm = T))
+```
+
+

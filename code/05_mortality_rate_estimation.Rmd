@@ -26,11 +26,11 @@ library(cowplot)
 library(xtable)
 
 ## read in survey df
-survey_df <- read_csv(here("data", "clean_data", "survey_df_cleaned_weighted_dec3_2023.csv")) %>% 
+survey_df <- read_csv(here("data", "clean_data", "survey_df_cleaned_weighted_feb18_2023.csv")) %>% 
   filter(zone_de_sante_name != "Nyunzu")
 
 ## read in death df 
-death_df <- read_csv(here("data", "clean_data", "death_df_cleaned_weighted_dec3_2023.csv")) %>% 
+death_df <- read_csv(here("data", "clean_data", "death_df_cleaned_weighted_feb18_2023.csv")) %>% 
   filter(zone_de_sante_name != "Nyunzu")
 
 ## read in weighting targets 
@@ -49,12 +49,12 @@ The code below produces estimates of the pooled cdr with corresponding 95% uncer
 ## calculate cdr 
 cdr_pooled_point <- networksurvival::compute_cdr_comprehensive(death_df = death_df,
                                                                   survey_df = survey_df,
-                                                                  weight_col = "weight_poststrat")
+                                                                  weight_col = "weight_hh_sample")
 
-## run 10,000 bootstrap samples 
+## run 10,000 bootstrap samples
 cdr_pooled_bootstrap <- networksurvival::compute_cdr_comprehensive(death_df = death_df,
                                                                         survey_df = survey_df,
-                                                                        weight_col = "weight_poststrat", bootstrap = 10000) 
+                                                                        weight_col = "weight_hh_sample", bootstrap = 100) 
 
 ## uncertainty estimates 
 cdr_pooled_uncertainty <- cdr_pooled_bootstrap %>% 
@@ -66,7 +66,7 @@ cdr_pooled_uncertainty <- cdr_pooled_bootstrap %>%
 cdr_pooled_point_uncertainty <- inner_join(cdr_pooled_point, cdr_pooled_uncertainty, by = c("weights", "type"))
 
 # Create visualizations 
-cdr_pooled_plot <- cdr_pooled_point_uncertainty %>% 
+cdr_pooled_plot_new <- cdr_pooled_point_uncertainty %>% 
   filter(type != "household") %>% 
   mutate(weights = case_when(
     weights == "poststrat" ~ "Poststratification",
@@ -208,7 +208,7 @@ cdr_estimates_monthly <- bind_rows(cdr_monthly_hz_point_uncertainty, cdr_monthly
 ## dpylr::select columns for pre-registration 
 preregistered_estimates <- cdr_estimates %>% 
   bind_rows(cdr_estimates_monthly) %>% 
-  dpylr::select(type, weights, zone_de_sante_name, month, death_rate, death_rate_lower, death_rate_upper)
+  dplyr::select(type, weights, zone_de_sante_name, month, death_rate, death_rate_lower, death_rate_upper)
 
 
 write_csv(preregistered_estimates, here("data", "preregistered_estimates", "preregistered_estimates.csv"))

@@ -1,6 +1,6 @@
 ---
 title: "Run all Scripts"
-author: Cassey Breen
+author: Casey Breen
 ---
 
 ## Summary 

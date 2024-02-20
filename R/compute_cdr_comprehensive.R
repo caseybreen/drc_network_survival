@@ -92,8 +92,11 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
 
       ## weights
       weights <- boot_survey_df %>%
-        dplyr::select(uuid_ki, weight_poststrat) %>%
-        distinct()
+        select(uuid_ki, weight_poststrat) %>%
+        distinct() %>%
+        group_by(uuid_ki) %>%
+        slice(1) %>%
+        ungroup()  # Ensure the grouping is removed after slicing
 
       ## death df
       boot_death_df_final <- boot_death_df_final %>%
