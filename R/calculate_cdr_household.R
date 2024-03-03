@@ -16,7 +16,6 @@
 #' @export
 
 calculate_cdr_household <- function(death_df, survey_df, weight_col = "weights", subpop = NULL) {
-
   # Validate weight column
   if (!(weight_col %in% names(survey_df))) {
     stop("The specified weight column is not in the survey_df.")
@@ -39,8 +38,8 @@ calculate_cdr_household <- function(death_df, survey_df, weight_col = "weights",
       exposure_unweighted = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_hh
     ) %>%
     summarize(
-      exposure = sum(exposure, na.rm = TRUE),
-      exposure_unweighted = sum(exposure_unweighted, na.rm = TRUE)
+      exposure = sum(exposure),
+      exposure_unweighted = sum(exposure_unweighted)
     )
 
   # Calculate death counts
@@ -56,7 +55,7 @@ calculate_cdr_household <- function(death_df, survey_df, weight_col = "weights",
       full_join(death_count, by = subpop) %>%
       mutate(
         death_rate = 10000 * n_deaths / exposure,
-        death_rate_unweighted =  10000 * n_deaths_unweighted / exposure_unweighted
+        death_rate_unweighted = 10000 * n_deaths_unweighted / exposure_unweighted
       )
   } else {
     exposure_hh_neighbors %>%

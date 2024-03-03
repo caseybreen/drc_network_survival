@@ -3,7 +3,7 @@
 #' This function computes exposure and death estimates for kin and neighbors, incorporating
 #' options for bootstrapping, monthly calculations, and subpopulation analysis. It also calculates a
 #' blended estimate combining kin and neighbor data, weighted by a given factor.
-#'#'
+#' #'
 #' @param death_df data.frame with death records.
 #' @param survey_df data.frame with survey data.
 #' @param bootstrap numeric, number of bootstrap samples to generate; NA for no bootstrapping.
@@ -20,8 +20,10 @@
 #' @export
 
 
-compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_poststrat", bootstrap = NA, monthly = FALSE,
-                                subpopulation = NULL, HH = F, blended_weight_kin = 0.5014031, weight_targets = weighting_targets) {
+compute_cdr_comprehensive <- function(death_df, survey_df, weight_col, bootstrap = NA, monthly = FALSE,
+                                      subpopulation = NULL, HH = F, blended_weight_kin = 0.5014031,
+                                      weight_targets = weighting_targets, weight_type = "poststrat") {
+
   ## create list to store results
   results_list <- list()
 
@@ -63,8 +65,6 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
     results_list[["neighbor"]] <- neighbor_result
     results_list[["blended"]] <- blended_result
     results_list[["household"]] <- household_result
-
-
   } else {
     # Run the main code 'bootstrap' times for each bootstrap sample
     for (i in 1:bootstrap) {
@@ -72,7 +72,7 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
       ## bootstrap survey
       boot_survey_df <- survey_df %>%
         dplyr::select(-!!weight_col) %>%
-        group_by(zone_de_sante_name, gender, start_month) %>%
+        group_by(health_zone, gender, start_month) %>%
         sample_n(size = n(), replace = TRUE) %>%
         ungroup()
 
@@ -87,16 +87,22 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
         ungroup() %>%
         slice(unlist(mapply(rep, 1:n(), count_column)))
 
-      ## poststratification weights
-      boot_survey_df <- networksurvival::generate_poststrat_weights(weighting_targets = weight_targets, survey_df = boot_survey_df)
+      # Check the weight type and apply the corresponding weight generation function
+      if (weight_type == "poststrat") {
+        boot_survey_df <- networksurvival::generate_poststrat_weights(weighting_targets = weight_targets, survey_df = boot_survey_df) %>%
+          mutate(weight_col = weight_poststrat)
+      } else {
+        boot_survey_df <- networksurvival::generate_raking_weights(weighting_targets = weight_targets, survey_df = boot_survey_df) %>%
+          mutate(weight_col = weight_raking)
+      }
 
       ## weights
       weights <- boot_survey_df %>%
-        select(uuid_ki, weight_poststrat) %>%
+        dplyr::select(uuid_ki, weight_col) %>%
         distinct() %>%
         group_by(uuid_ki) %>%
         slice(1) %>%
-        ungroup()  # Ensure the grouping is removed after slicing
+        ungroup() # Ensure the grouping is removed after slicing
 
       ## death df
       boot_death_df_final <- boot_death_df_final %>%
@@ -104,17 +110,17 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
 
       # Kin estimate
       estimate_kin_func <- if (monthly) calculate_cdr_kin_monthly else calculate_cdr_kin
-      kin_result <- estimate_kin_func(survey_df = boot_survey_df, death_df = boot_death_df_final, weight_col = weight_col, subpop = subpopulation) %>%
+      kin_result <- estimate_kin_func(survey_df = boot_survey_df, death_df = boot_death_df_final, weight_col = "weight_col", subpop = subpopulation) %>%
         mutate(bootstrap_iter = i, type = "kin")
 
       # Neighbor estimate
       estimate_neighbor_func <- if (monthly) calculate_cdr_neighbor_monthly else calculate_cdr_neighbor
-      neighbor_result <- estimate_neighbor_func(survey_df = boot_survey_df, death_df = boot_death_df_final, weight_col = weight_col, subpop = subpopulation) %>%
+      neighbor_result <- estimate_neighbor_func(survey_df = boot_survey_df, death_df = boot_death_df_final, weight_col = "weight_col", subpop = subpopulation) %>%
         mutate(bootstrap_iter = i, type = "neighbor")
 
       # HH estimate
       estimate_hh_func <- if (monthly) calculate_cdr_household_monthly else calculate_cdr_household
-      household_result <- estimate_hh_func(survey_df = boot_survey_df, death_df = boot_death_df_final, weight_col = weight_col, subpop = subpopulation) %>%
+      household_result <- estimate_hh_func(survey_df = boot_survey_df, death_df = boot_death_df_final, weight_col = "weight_col", subpop = subpopulation) %>%
         mutate(bootstrap_iter = i, type = "household")
 
 
@@ -147,7 +153,7 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
   # Apply pivot_longer with the determined columns to exclude
   results_df <- results_df %>%
     pivot_longer(
-      cols = -c(existing_cols),  # This will ignore non-existent columns
+      cols = -c(existing_cols), # This will ignore non-existent columns
       names_to = c(".value", "weights"),
       names_pattern = "(.*?)(_unweighted)?$"
     ) %>%
@@ -155,6 +161,4 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col = "weight_
       weights == "_unweighted" ~ "unweighted",
       TRUE ~ "poststrat"
     ))
-
-
 }

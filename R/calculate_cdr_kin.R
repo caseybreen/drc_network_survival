@@ -8,7 +8,6 @@
 #' @export
 
 calculate_cdr_kin <- function(death_df, survey_df, weight_col = "weights", subpop = NULL) {
-
   ## Validate weight column
   if (!(weight_col %in% names(survey_df))) {
     stop("The specified weight column is not in the survey_df.")

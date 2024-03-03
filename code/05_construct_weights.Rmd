@@ -20,10 +20,10 @@ library(cowplot)
 weighting_targets <- read_csv(here("data/weighting/weighting_targets.csv"))
 
 ## read in data 
-survey_df <- read_csv(here("data/clean_data/survey_df_cleaned_dec3_2023.csv")) 
+survey_df <- read_csv(here("data/data_clean/quota_sample_survey.csv")) 
 
 ## read in death df 
-death_df <- read_csv(here("data/clean_data/death_df_cleaned_dec3_2023.csv"))
+death_df <- read_csv(here("data/data_clean/quota_sample_deaths.csv"))
 ```
 
 ## Marginal population totals 
@@ -32,11 +32,11 @@ death_df <- read_csv(here("data/clean_data/death_df_cleaned_dec3_2023.csv"))
 # Define a function to calculate marginal percentages
 calculate_marginal_percentage <- function(data, group_var) {
   data %>%
-    group_by(!!sym(group_var), zone_de_sante) %>%
+    group_by(!!sym(group_var), health_zone) %>%
     summarise(count = sum(sum_value)) %>%
     mutate(covar = group_var) %>%
     rename(value = !!sym(group_var)) %>%
-    group_by(zone_de_sante) %>%
+    group_by(health_zone) %>%
     mutate(perc = count / sum(count))
 }
 
@@ -47,7 +47,7 @@ gender_count <- calculate_marginal_percentage(weighting_targets, "gender")
 # Combine the results
 margin_pop <- bind_rows(age_count, gender_count) %>%
   ungroup() %>%
-  dplyr::select(variable = covar, level = value, proportion = perc, zone_de_sante)
+  dplyr::select(variable = covar, level = value, proportion = perc, health_zone)
 ```
 
 ```{r}
@@ -70,30 +70,30 @@ survey_df <- survey_df %>%
 ```{r}
 # Kalemie
 margin_pop_kalemie <- margin_pop %>% 
-  filter(zone_de_sante == "Kalemie") %>%
+  filter(health_zone == "Kalemie") %>%
   mutate(proportion = round(proportion, 4)) %>% 
-  dplyr::select(-zone_de_sante)
+  dplyr::select(-health_zone)
 
 results_ns_kalemie <- survey_df %>% 
-  filter(zone_de_sante_name == "Kalemie") %>% 
+  filter(health_zone == "Kalemie") %>% 
   harvest(margin_pop_kalemie)
 
 # Nyunzu
 margin_pop_nyunzu <- margin_pop %>% 
-  filter(zone_de_sante == "Nyunzu") %>%
-  dplyr::select(-zone_de_sante)
+  filter(health_zone == "Nyunzu") %>%
+  dplyr::select(-health_zone)
 
 results_ns_nyunzu <- survey_df %>% 
-  filter(zone_de_sante_name == "Nyunzu") %>% 
+  filter(health_zone == "Nyunzu") %>% 
   harvest(margin_pop_nyunzu)
 
 # Nyemba
 margin_pop_nyemba <- margin_pop %>% 
-  filter(zone_de_sante == "Nyemba") %>%
-  dplyr::select(-zone_de_sante)
+  filter(health_zone == "Nyemba") %>%
+  dplyr::select(-health_zone)
 
 results_ns_nyemba <- survey_df %>% 
-  filter(zone_de_sante_name == "Nyemba") %>% 
+  filter(health_zone == "Nyemba") %>% 
   harvest(margin_pop_nyemba)
 
 # Combine all into one DataFrame
@@ -126,40 +126,12 @@ death_weighted <- death_df %>%
 ```
 
 
-## write csv 
+## write csv files  
 
 ```{r}
 ## write csv 
-write_csv(death_weighted, here("data/clean_data/death_df_cleaned_weighted_dec3_2023.csv"))
-write_csv(survey_df_weighted, here("data/clean_data/survey_df_cleaned_weighted_dec3_2023.csv"))
-```
-
-
-
-```{r}
-# ## margin comparison 
-# margin_comparison <- margin_sample %>% 
-#   left_join(margin_pop %>% rename(zone_de_sante_name = zone_de_sante, proportion_pop = proportion), by = c("variable", "level", "zone_de_sante_name")) 
-# 
-# margin_comparison %>% 
-#   ggplot() +
-#   geom_segment(aes(xend = proportion, x = proportion_pop, y = level, yend = level),
-#                color = 'black', 
-#                alpha = 0.5) + 
-#   geom_point(size = 1.5, aes(x = proportion, y = level, color = "Sample")) +  # Color inside aes
-#   geom_point(size = 1.5, aes(x = proportion_pop, y = level, color = "Population")) +  # Color inside aes
-#   facet_grid(variable ~ zone_de_sante_name, scales = 'free_y', space = 'free_y', switch = 'y') +
-#   labs(x = "Fraction of sample") +
-#   scale_color_manual(name = "", values = c("Sample" = "black", 'Population' = "red")) +
-#   scale_x_continuous(labels = scales::percent_format(), n.breaks = 10) +
-#   theme_bw() +
-#   theme(legend.position = c(1, 1), # Top-right corner
-#         legend.justification = c("right", "top"), # Anchor the legend at its top-right
-#         legend.direction = 'vertical',
-#         legend.margin = margin(t = 0, unit = 'cm'),
-#         legend.box.background = element_rect(colour = "black"),
-#         legend.title = element_blank())
-
+write_csv(death_weighted, here("data", "data_clean", "quota_sample_deaths.csv"))
+write_csv(survey_df_weighted, here("data", "data_clean", "quota_sample_survey.csv"))
 ```
 
 

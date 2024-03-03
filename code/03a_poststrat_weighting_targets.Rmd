@@ -84,7 +84,7 @@ for (tif_file in tif_files) {
       gender = gender,
       number = number,
       sum_value = sum(unlist(result)),
-      zone_de_sante = zone
+      health_zone = zone
     )
     
     ## add to list 
@@ -124,7 +124,7 @@ adjusted_df <- weighting_targets %>%
 # Now, create the new 18-25 age category
 age_category_18_25 <- adjusted_df %>%
  # mutate(age_class = if_else(number %in% c(15, 20), "[18,25)", age_class)) %>%
-  group_by(gender, zone_de_sante) %>%
+  group_by(gender, health_zone) %>%
   summarise(sum_value = sum(adjusted_sum_value)) %>%
   ungroup() %>% 
   mutate(age_class = "[18,25)")

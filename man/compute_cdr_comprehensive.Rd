@@ -13,7 +13,8 @@ compute_cdr_comprehensive(
   subpopulation = NULL,
   HH = F,
   blended_weight_kin = 0.5014031,
-  weight_targets = weighting_targets
+  weight_targets = weighting_targets,
+  weight_type = "poststrat"
 )
 }
 \arguments{
@@ -41,10 +42,5 @@ results <- estimate_death_rate(death_df = death_records, survey_df = survey_data
 This function computes exposure and death estimates for kin and neighbors, incorporating
 options for bootstrapping, monthly calculations, and subpopulation analysis. It also calculates a
 blended estimate combining kin and neighbor data, weighted by a given factor.
-}
-\details{
-The function allows for a comprehensive analysis of mortality data by combining
-different estimation methods (kin and neighbor) and enabling advanced techniques
-like bootstrapping for robustness. The blended result, weighted by the specified
-kin weight, offers a more nuanced understanding of mortality rates.
+#'
 }

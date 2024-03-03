@@ -1,0 +1,189 @@
+---
+title: "Calculate Household Mortality Estimates"
+author: Casey Breen
+---
+
+Summary: Estimate HH mortality rate 
+
+
+```{r}
+## Library package
+library(tidyverse)
+library(srvyr)
+library(cowplot)
+library(here)
+
+
+## read in datasets
+hh_sample_mortality_long <- read_csv(here("data", "data_clean", "hh_sample_mortality_long.csv"))
+hh_sample_deaths <- read_csv(here("data", "data_clean", "hh_sample_deaths.csv"))
+hh_sample_neighbors <- read_csv(here("data", "data_clean", "hh_sample_neighbors.csv"))
+hh_sample_respondent_df <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv"))
+```
+
+
+```{r}
+## survey mortality period
+srvey_mortality_fullperiod_ns <- as_survey_design(hh_sample_mortality_long,
+  strata = "health_zone",
+  weights = "weights"
+)
+
+## age specific cdr 
+age_specific_cdr <- srvey_mortality_fullperiod_ns %>%
+  group_by(age_group) %>%
+  summarise(x = survey_ratio(
+    numerator = death * 10000,
+    denominator = person_time_new,
+    vartype = "ci",
+    deff = "replace"
+  )) %>%
+  mutate(across(where(is.numeric), ~ round(., 2))) %>%
+  mutate(variable = "cmr") %>%
+  mutate(x_low = case_when(
+    x_low < 0 ~ 0,
+    TRUE ~ x_low
+  ))
+
+# First plot for one part of the data
+age_specific_cdr <- age_specific_cdr %>%
+  ggplot(aes(x = age_group, y = x, ymin = x_low, ymax = x_upp)) +
+  scale_y_continuous(trans = scales::pseudo_log_trans(base = 10)) +
+  geom_pointrange() +
+  theme_cowplot() +
+  labs(
+    x = "                              Age Group",
+    y = "Age-Specific Death Rates"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+## save plot
+age_specific_cdr %>%
+  ggsave(filename = here("figures/age_specific_cdr.png"), height = 5, width = 7)
+```
+
+
+```{r}
+deaths_over_time_plot <- hh_sample_deaths %>%
+  filter(death_uuid != "WVOVEC") %>%
+  filter(!is.na(death_hh_or_neighbour)) %>%
+  mutate(cat = case_when(
+    death_hh_or_neighbour == "neighbour" ~ "Neighbor (not kin)",
+    death_hh_or_neighbour == "neither" ~ "Kin (not neighbor or own household)",
+    death_hh_or_neighbour == "own_hh" ~ "Own household"
+  )) %>%
+  mutate(month = lubridate::floor_date(as_date(final_date_death), unit = "months")) %>%
+  group_by(month, cat) %>%
+  summarize(deaths = n()) %>%
+  filter(month != as.Date("2023-08-01")) %>%
+  ggplot(aes(x = month, y = deaths)) +
+  geom_point() +
+  geom_line() +
+  theme_cowplot() +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+  labs(
+    x = "Month of Death",
+    y = "Count of Reported Deaths"
+  ) +
+  facet_wrap(~cat, ncol = 1) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    panel.grid.major = element_line(color = "grey80", size = 0.1)
+  ) +
+  ylim(0, 130)
+
+## save plot
+deaths_over_time_plot %>%
+  ggsave(filename = here("figures/deaths_over_time.png"), height = 8, width = 6)
+```
+
+
+
+```{r}
+## survey mortality period
+srvey_mortality_fullperiod_ns <- as_survey_design(hh_sample_mortality_long,
+  strata = "health_zone",
+  weights = "weights"
+)
+
+## hh crude
+hh_crude_health_zone <- srvey_mortality_fullperiod_ns %>%
+  group_by(health_zone) %>%
+  summarise(x = survey_ratio(
+    numerator = death * 10000,
+    denominator = person_time_new,
+    vartype = "ci",
+    deff = "replace"
+  )) %>%
+  mutate(across(where(is.numeric), ~ round(., 2))) %>%
+  mutate(variable = "cmr")
+
+# Plot
+hh_death_rate_health_zones <- ggplot(hh_crude_health_zone, aes(x = health_zone, y = x)) +
+  geom_errorbar(aes(ymin = x_low, ymax = x_upp), width = 0.1) + # Pointrange for the error bars
+  geom_point(size = 10, shape = 21, fill = "white", color = "black", stroke = .7) + # Bubble-like points
+  geom_text(aes(label = round(x, 2)), vjust = 0.3, size = 3.1) + # Numbers above bubbles
+  theme_cowplot() +
+  labs(x = "Administrative Unit", y = "CDR (Deaths / 10,000 person days)", title = "Crude Death Rate Estimates") +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylim(0, 1.1)
+
+## save plot
+hh_death_rate_health_zones %>%
+  ggsave(filename = here("figures/hh_death_rate_health_zones.png"), height = 8, width = 6)
+```
+
+
+
+```{r}
+## hh data
+hh_sample_mortality_long <- hh_sample_mortality_long %>%
+  mutate(hh_id = sub("_[^_]*$", "", id))
+
+hh_sample_mortality_long <- hh_sample_mortality_long %>%
+  left_join(hh_sample_respondent_df %>%
+    dplyr::select(education_level, uuid_col), by = c("hh_id" = "uuid_col"))
+
+
+## survey mortality period
+srvey_mortality_fullperiod_ns <- as_survey_design(hh_sample_mortality_long,
+  strata = "health_zone",
+  weights = "weights"
+)
+
+
+education_disparities <- srvey_mortality_fullperiod_ns %>%
+  group_by(education_level) %>%
+  summarise(x = survey_ratio(
+    numerator = death * 10000,
+    denominator = person_time_new,
+    vartype = "ci",
+    deff = "replace"
+  )) %>%
+  mutate(across(where(is.numeric), ~ round(., 2))) %>%
+  mutate(variable = "cmr")
+
+
+# Ensure the 'education_level' factor is correctly set with new level names
+education_disparities$education_level <- factor(education_disparities$education_level,
+  levels = c("none", "primary", "lower_secondary", "upper_secondary", "superior", "dontknow"),
+  labels = c("None", "Primary School", "Lower Secondary", "Upper Secondary", "University", "Unknown")
+)
+
+# Filter out "Unknown" (previously "dontknow") and plot
+education_disparities_plot <- education_disparities %>%
+  filter(education_level != "Unknown") %>%
+  ggplot(aes(x = education_level, y = x, ymin = x_low, ymax = x_upp)) +
+  geom_pointrange() +
+  theme_cowplot() +
+  labs(
+    x = "Education Level",
+    y = "Estimated Crude Death Rate"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylim(0, 1.2)
+
+## save file 
+education_disparities_plot %>%
+  ggsave(filename = here("figures/education_disparities.png"), height = 5, width = 7)
+```

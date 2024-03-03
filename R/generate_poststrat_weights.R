@@ -18,29 +18,29 @@ generate_poststrat_weights <- function(weighting_targets = weighting_targets, su
 
   # Poststratification sample
   poststrat_worldpop <- weighting_targets %>%
-    group_by(zone_de_sante_name = zone_de_sante, age_class, gender) %>%
+    group_by(health_zone, age_class, gender) %>%
     summarize(n = sum(sum_value), .groups = "drop") %>%
-    group_by(zone_de_sante_name) %>%
+    group_by(health_zone) %>%
     mutate(prop_pop = n / sum(n)) %>%
     ungroup()
 
   # Poststratification population
   poststrat_sample <- survey_df %>%
-    group_by(zone_de_sante_name, age_class, gender) %>%
+    group_by(health_zone, age_class, gender) %>%
     summarize(n = n(), .groups = "drop") %>%
-    group_by(zone_de_sante_name) %>%
+    group_by(health_zone) %>%
     mutate(prop_sample = n / sum(n)) %>%
     ungroup()
 
   # Poststratification weights
   poststrat_weights <- poststrat_sample %>%
-    inner_join(poststrat_worldpop, by = c("age_class", "gender", "zone_de_sante_name")) %>%
+    inner_join(poststrat_worldpop, by = c("age_class", "gender", "health_zone")) %>%
     mutate(weight = prop_pop / prop_sample) %>%
-    dplyr::select(gender, age_class, zone_de_sante_name, weight_poststrat = weight)
+    dplyr::select(gender, age_class, health_zone, weight_poststrat = weight)
 
   # Joining the poststratification weights back into survey_df
   updated_survey_df <- survey_df %>%
-    left_join(poststrat_weights, by = c("gender", "age_class", "zone_de_sante_name"))
+    left_join(poststrat_weights, by = c("gender", "age_class", "health_zone"))
 
   # return updated survey df
   return(updated_survey_df)

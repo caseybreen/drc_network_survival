@@ -14,12 +14,8 @@ A single numeric value representing the blended weight for kin estimates.
 }
 \description{
 This function calculates the blended weight to be applied to kin estimates in a mortality study.
-The weight is derived based on the variance of estimates from kin and neighbor data, as well as their covariance.
-The approach helps in balancing the two types of estimates, considering their respective variabilities and interrelationship.
-}
-\details{
-The weight calculated is specifically designed to be applied to kin estimates. It considers the variance of death rates from both kin and neighbor data and their covariance, aiming to achieve a more balanced and accurate overall estimate.
-
+The weight is derived based on the variance of estimates from kin and neighbor data, as well as their covariance.#'
+#'
 Example usage:
 kin_blended_weight <- calculate_blended_weight_kin(mortality_estimates)
 }

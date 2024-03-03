@@ -1,0 +1,264 @@
+---
+title: "Construct weights"
+author: Casey Breen
+---
+
+Summary: Construct weights 
+
+
+ages: (18–24, 25–34, 35–44, 45–54, 55–64, 65+), gender (female and male), and health zone (Nyunzu and Kalemie)
+
+
+```{r}
+# Load required libraries
+library(tidyverse)
+library(caret) # For pre-processing
+library(psych) # For PCA
+library(here)
+library(autumn)
+```
+
+
+
+```{r}
+## read in survey df
+quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv"))
+household_sample_respondent <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv"))
+household_sample_roster <- read_csv(here("data", "data_clean", "hh_sample_roster.csv")) 
+```
+
+
+```{r}
+## roster df 
+household_sample_roster <- household_sample_roster %>% 
+  left_join(household_sample_respondent %>% dplyr::select(health_zone, uuid_col), 
+            by = c('_submission__uuid' = 'uuid_col')) 
+
+## roster df drop ages 
+household_sample_roster <- household_sample_roster %>% 
+  mutate(age_years = as.numeric(age_years)) %>% 
+  filter(age_years >= 18)
+
+## roster df gender 
+household_sample_roster <- household_sample_roster %>% 
+  mutate(gender = sex_roster) %>% 
+   mutate(age_class = case_when(
+    age_years %in% c(18:24) ~ "[18,25)",
+    age_years %in% c(25:34) ~ "[25,35)",
+    age_years %in% c(33:44) ~ "[35,45)",
+    age_years %in% c(45:54) ~ "[45,55)",
+    age_years %in% c(55:64) ~ "[55,65)",
+    age_years %in% c(65:100) ~ "[65,100]"
+  ))
+```
+
+```{r}
+## clean up hh df 
+household_sample_respondent <- household_sample_respondent %>% 
+  mutate(age = as.numeric(age_repondant)) %>% 
+  mutate(gender = sexe_repondant) %>% 
+  mutate(education_level = case_when(
+    education_level == "dontknow" ~ "none",
+    TRUE ~  education_level
+  )) %>% 
+   mutate(age_class = case_when(
+    age %in% c(18:24) ~ "[18,25)",
+    age %in% c(25:34) ~ "[25,35)",
+    age %in% c(33:44) ~ "[35,45)",
+    age %in% c(45:54) ~ "[45,55)",
+    age %in% c(55:64) ~ "[55,65)",
+    age %in% c(65:100) ~ "[65,100]"
+  )) %>% 
+  mutate(gender = case_when(
+    gender == "f'" ~ "f",
+    TRUE ~ gender
+  ))
+
+
+# Adjust the function for recategorization with lowercase variable names and without dashes
+recategorize_livelihood <- function(livelihood) {
+  case_when(
+    livelihood %in% c('employed_agriculture', 'self_agriculture', 'sell_anim_prod') ~ 'agriculture',
+    livelihood %in% c('daily_labour_non', 'daily_labour_skilled', 'unskilled', 'skilled') ~ 'labor',
+    livelihood %in% c('professional', 'clerical') ~ 'professional',
+    livelihood %in% c('sales', 'trader') ~ 'sales',
+    livelihood %in% c('domestic', 'other', 'not_working') ~ 'domestic_other',
+    TRUE ~ 'no_response_misc' # Including 'noresponse', 'army', and any others not explicitly listed
+  )
+}
+
+# Apply the recategorization to the data frames and count with variable names in lowercase
+quota_sample_survey <- quota_sample_survey %>%
+  mutate(livelihood = recategorize_livelihood(livelihood)) 
+
+household_sample_respondent <- household_sample_respondent %>%
+  mutate(livelihood = recategorize_livelihood(livelihood)) 
+```
+
+
+## estimate weighting targets using HH roster 
+
+
+```{r}
+# Define a function to calculate marginal percentages
+calculate_marginal_percentage <- function(data, group_var) {
+  data %>%
+    group_by(!!sym(group_var), health_zone) %>%
+    summarise(count = n()) %>%
+    mutate(covar = group_var) %>%
+    rename(value = !!sym(group_var)) %>%
+    group_by(health_zone) %>%
+    mutate(perc = count / sum(count))
+}
+
+# Apply the function for age_class and gender
+age_count <- calculate_marginal_percentage(household_sample_roster, "age_class")
+gender_count <- calculate_marginal_percentage(household_sample_roster, "gender")
+
+
+# Assuming your data frame is named 'df'
+household_sample_respondent <- household_sample_respondent %>%
+  mutate(material_house_category = case_when(
+    material_house %in% c("bricks", "cement", "cement_blocks", "coated_adobe") ~ "Manufactured",
+    TRUE ~ "Natural / None",
+  ))
+
+# Assuming your data frame is named 'df'
+household_sample_respondent <- household_sample_respondent %>%
+  mutate(fuel_type = case_when(
+    cooking_fuel %in% c("charcoal", "coal_lignite", "electricity", "kerosene") ~ "Modern",
+    TRUE ~ "Traditional"
+  ))
+
+count_bed <- calculate_marginal_percentage(household_sample_respondent, "bed")
+count_house_material <- calculate_marginal_percentage(household_sample_respondent, "material_house_category")
+count_radio <- calculate_marginal_percentage(household_sample_respondent, "radio")
+count_fueltype <- calculate_marginal_percentage(household_sample_respondent, "fuel_type")
+
+
+# Combine the results
+margin_pop_hh <- bind_rows(age_count, gender_count, count_bed, count_house_material, count_radio, count_fueltype) %>%
+  ungroup() %>%
+  dplyr::select(variable = covar, level = value, proportion = perc, health_zone)
+```
+
+
+```{r}
+# Assuming your data frame is named 'df'
+quota_sample_survey <- quota_sample_survey %>%
+  mutate(material_house_category = case_when(
+    material_house %in% c("bricks", "cement", "cement_blocks", "coated_adobe") ~ "Manufactured",
+    TRUE ~ "Natural / None",
+  ))
+
+# Assuming your data frame is named 'df'
+quota_sample_survey <- quota_sample_survey %>%
+  mutate(fuel_type = case_when(
+    cooking_fuel %in% c("charcoal", "coal_lignite", "electricity", "kerosene") ~ "Modern",
+    TRUE ~ "Traditional"
+  ))
+
+
+# Kalemie
+margin_pop_kalemie <- margin_pop_hh %>% 
+  filter(health_zone == "Kalemie") %>%
+ # mutate(proportion = round(proportion, 4)) %>% 
+  dplyr::select(-health_zone) %>% 
+  as.data.frame()
+
+results_ns_kalemie <- quota_sample_survey %>% 
+  filter(health_zone == "Kalemie")  %>% 
+  harvest(margin_pop_kalemie)
+
+# Nyunzu
+margin_pop_nyunzu <- margin_pop_hh %>% 
+  filter(health_zone == "Nyunzu") %>%
+  dplyr::select(-health_zone)
+
+results_ns_nyunzu <- quota_sample_survey %>% 
+  filter(health_zone == "Nyunzu") %>% 
+  harvest(margin_pop_nyunzu)
+
+# Nyunzu
+margin_pop_nyemba <- margin_pop_hh %>% 
+  filter(health_zone == "Nyemba") %>%
+  dplyr::select(-health_zone)
+
+results_ns_nyemba <- quota_sample_survey %>% 
+  filter(health_zone == "Nyemba") %>% 
+  harvest(margin_pop_nyunzu)
+
+
+# Combine all into one DataFrame
+quota_sample_survey_weighted <- bind_rows(results_ns_kalemie, results_ns_nyunzu, results_ns_nyemba) 
+
+## survey df weighted 
+quota_sample_survey_weighted <- quota_sample_survey_weighted %>% 
+  rename(weight_hh_sample = weights)
+```
+
+
+```{r}
+## weights 
+weights <- quota_sample_survey_weighted %>% 
+  dplyr::select(uuid_ki, weight_hh_sample)
+
+death_df <- read_csv(here("data", "data_clean", "quota_sample_deaths.csv"))
+
+## death df 
+death_weighted <- death_df %>% 
+  inner_join(weights, by = c("uuid_ki"))
+
+## write out file 
+write_csv(death_weighted, here("data", "data_clean", "quota_sample_deaths.csv"))
+```
+
+
+
+
+
+
+```{r}
+# Apply the function for age_class and gender
+age_count_survey <- calculate_marginal_percentage(quota_sample_survey, group_var = "age_class")
+gender_count_survey <- calculate_marginal_percentage(quota_sample_survey, "gender")
+bed <- calculate_marginal_percentage(quota_sample_survey, "bed") %>% 
+  mutate(value = as.character(value))
+count_house_material <- calculate_marginal_percentage(quota_sample_survey, "material_house_category") %>% 
+  mutate(value = as.character(value))
+count_radio <- calculate_marginal_percentage(quota_sample_survey, "radio") %>% 
+  mutate(value = as.character(value))
+count_fueltype <- calculate_marginal_percentage(quota_sample_survey, "fuel_type") %>% 
+  mutate(value = as.character(value))
+
+# Combine the results
+margin_pop_survey <- bind_rows(age_count_survey, gender_count_survey,
+                               bed, count_house_material, count_radio,count_fueltype ) %>%
+  ungroup() %>%
+  dplyr::select(variable = covar, level = value, proportion = perc, health_zone)
+
+## margin comparison
+margin_comparison <- margin_pop_survey %>%
+  left_join(margin_pop_hh %>% rename(proportion_pop = proportion), by = c("variable", "level", "health_zone"))
+
+margin_comparison %>% 
+  ggplot() +
+  geom_segment(aes(xend = proportion, x = proportion_pop, y = level, yend = level),
+               color = 'black',
+               alpha = 0.5) +
+  geom_point(size = 1.5, aes(x = proportion, y = level, color = "Sample")) +  # Color inside aes
+  geom_point(size = 1.5, aes(x = proportion_pop, y = level, color = "Population")) +  # Color inside aes
+  facet_grid(variable ~ health_zone, scales = 'free_y', space = 'free_y', switch = 'y') +
+  labs(x = "Fraction of sample") +
+  scale_color_manual(name = "", values = c("Sample" = "black", 'Population' = "red")) +
+  scale_x_continuous(labels = scales::percent_format(), n.breaks = 10) +
+  theme_bw() +
+  theme(legend.position = c(1, 1), # Top-right corner
+        legend.justification = c("right", "top"), # Anchor the legend at its top-right
+        legend.direction = 'vertical',
+        legend.margin = margin(t = 0, unit = 'cm'),
+        legend.box.background = element_rect(colour = "black"),
+        legend.title = element_blank())
+```
+
+

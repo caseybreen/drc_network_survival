@@ -18,8 +18,8 @@ library(janitor)
 library(here)
 
 ## read in data 
-survey_df <- readxl::read_xlsx(path = here("data", "raw_data", "2023-09-08", "network_survey_2023-08-16.xlsx"), sheet = "main_networksurvival")
-death_df <- readxl::read_xlsx(here("data", "raw_data", "2023-09-08", "network_survey_2023-08-16.xlsx"), sheet = "deaths")
+survey_df <- readxl::read_xlsx(path = here("data", "data_raw", "2023-09-08", "quota_survey_2023-08-16.xlsx"), sheet = "main_networksurvival")
+death_df <- readxl::read_xlsx(here("data", "data_raw", "2023-09-08", "quota_survey_2023-08-16.xlsx"), sheet = "deaths")
 ```
 
 
@@ -54,10 +54,32 @@ survey_df_clean <- survey_df %>%
   filter(!is.na(num_total_kin)) %>% 
     filter(!is.na(livelihood) & !is.na(education_level) & !is.na(material_house) & !is.na(cooking_fuel) & !is.na(bed))
 
-
 ## Create new start month variable 
 survey_df_clean <- survey_df_clean %>% 
   mutate(start_month = lubridate::floor_date(x = as_date(start), unit = "month"))
+
+survey_df_clean <- survey_df_clean %>% 
+  mutate(gender = ki_sex) %>% 
+  mutate(age_class = case_when(
+    ki_age %in% c(18:24) ~ "[18,25)",
+    ki_age %in% c(25:34) ~ "[25,35)",
+    ki_age %in% c(33:44) ~ "[35,45)",
+    ki_age %in% c(45:54) ~ "[45,55)",
+    ki_age %in% c(55:64) ~ "[55,65)",
+    ki_age %in% c(65:100) ~ "[65,100]"
+  )) %>% 
+  mutate(health_zone = zone_de_sante_name)
+
+# Assuming your data frame is named 'df'
+survey_df_clean <- survey_df_clean %>%
+  mutate(material_house_category = case_when(
+    material_house %in% c("bricks", "cement", "cement_blocks", "coated_adobe") ~ "Manufactured",
+    TRUE ~ "Natural / None",
+  )) %>% 
+  mutate(fuel_type = case_when(
+    cooking_fuel %in% c("charcoal", "coal_lignite", "electricity", "kerosene") ~ "Modern",
+    TRUE ~ "Traditional"
+  ))
 ```
 
 ## Clean data - death DF 
@@ -70,7 +92,7 @@ death_df_clean <- death_df %>%
 ## Rename variables and create death month variable
 death_df_clean <- death_df_clean %>% 
   mutate(uuid_ki = uuid_ki4) %>% 
-  mutate(zone_de_sante_name = case_when(
+  mutate(health_zone = case_when(
     death_zs == 746101 ~ "Kalemie",           
     death_zs == 746601 ~ "Nyunzu",            
     death_zs == 746102 ~ "Nyemba")) %>% 
@@ -80,7 +102,7 @@ death_df_clean <- death_df_clean %>%
 ## write out files 
 ```{r}
 ## Write out csv files 
-write_csv(survey_df_clean, here("data", "clean_data", "survey_df_cleaned_dec3_2023.csv"))
-write_csv(death_df_clean, here("data", "clean_data", "death_df_cleaned_dec3_2023.csv"))
+write_csv(survey_df_clean, here("data", "data_clean", "quota_sample_survey.csv"))
+write_csv(death_df_clean, here("data", "data_clean", "quota_sample_deaths.csv"))
 ```
 

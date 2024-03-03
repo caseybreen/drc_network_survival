@@ -1,0 +1,50 @@
+---
+title: "Scratch - PCA Analysis"
+output: html_notebook
+---
+
+
+```{r}
+# # Bind the two datasets together for PCA calculations
+# combined_data_for_pca <- bind_rows(
+#   household_sample_respondent %>% dplyr::select(material_house, cooking_fuel, bed, radio),
+#   quota_sample_survey %>% dplyr::select(material_house, cooking_fuel, bed, radio)
+# )
+# 
+# # Encode binary variables for combined dataset
+# combined_data_for_pca <- combined_data_for_pca %>%
+#   mutate(bed = ifelse(bed == "yes", 1, 0),
+#          radio = ifelse(radio == "yes", 1, 0))
+# 
+# # One-hot encode categorical variables for combined dataset
+# dummy_model_combined <- dummyVars("~ .", data = combined_data_for_pca)
+# combined_data_transformed <- predict(dummy_model_combined, combined_data_for_pca)
+# 
+# # Scale/Normalize combined data
+# combined_data_scaled <- scale(combined_data_transformed)
+# 
+# # Run PCA on combined data
+# pca_result_combined <- prcomp(combined_data_scaled, center = TRUE, scale. = TRUE)
+# 
+# pca_score_df <- tibble(pca_score = pca_result_combined$x[,1]) %>% 
+#   mutate(wealth_quantile = cut_number(pca_score, 5)) %>%
+#   mutate(wealth_quantile_bin = as.numeric(fct_rev(wealth_quantile))) 
+# 
+# # Now split the PCA scores back to the original datasets
+# hh_df <- hh_df %>%
+#   bind_cols(pca = pca_score_df[1:nrow(hh_df),])
+# 
+# survey_df_nonprob <- survey_df_nonprob %>%
+#     bind_cols(pca = pca_score_df[(nrow(hh_df) + 1):(nrow(hh_df) + nrow(survey_df_nonprob)),])
+# 
+# # Rest of your original code to apply wealth quantiles and summarize
+# hh_df %>% 
+#   group_by(zone_de_sante) %>% 
+#   summarize(mean(wealth_quantile_bin))
+# 
+# survey_df_nonprob %>% 
+#     group_by(zone_de_sante) %>% 
+#   summarize(mean(wealth_quantile_bin))
+
+```
+

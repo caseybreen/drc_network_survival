@@ -1,0 +1,160 @@
+---
+title: "R Notebook"
+author: Casey Breen
+---
+
+
+```{r}
+# Load required libraries
+library(tidyverse)
+library(caret) # For pre-processing
+library(psych) # For PCA
+library(here)
+library(autumn)
+```
+
+
+
+```{r}
+## read in survey df
+quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv"))
+household_sample_respondent <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv"))
+household_sample_roster <- read_csv(here("data", "data_clean", "hh_sample_roster.csv")) 
+```
+
+
+```{r}
+## roster df 
+household_sample_roster <- household_sample_roster %>% 
+  left_join(household_sample_respondent %>% dplyr::select(health_zone, uuid_col), 
+            by = c('_submission__uuid' = 'uuid_col')) 
+
+## roster df drop ages 
+household_sample_roster <- household_sample_roster %>% 
+  mutate(age_years = as.numeric(age_years)) %>% 
+  filter(age_years >= 18)
+
+## roster df gender 
+household_sample_roster <- household_sample_roster %>% 
+  mutate(gender = sex_roster) %>% 
+   mutate(age_class = case_when(
+    age_years %in% c(18:24) ~ "[18,25)",
+    age_years %in% c(25:34) ~ "[25,35)",
+    age_years %in% c(33:44) ~ "[35,45)",
+    age_years %in% c(45:54) ~ "[45,55)",
+    age_years %in% c(55:64) ~ "[55,65)",
+    age_years %in% c(65:100) ~ "[65,100]"
+  ))
+```
+
+```{r}
+## clean up hh df 
+household_sample_respondent <- household_sample_respondent %>% 
+  mutate(age = as.numeric(age_repondant)) %>% 
+  mutate(gender = sexe_repondant) %>% 
+  mutate(education_level = case_when(
+    education_level == "dontknow" ~ "none",
+    TRUE ~  education_level
+  )) %>% 
+   mutate(age_class = case_when(
+    age %in% c(18:24) ~ "[18,25)",
+    age %in% c(25:34) ~ "[25,35)",
+    age %in% c(33:44) ~ "[35,45)",
+    age %in% c(45:54) ~ "[45,55)",
+    age %in% c(55:64) ~ "[55,65)",
+    age %in% c(65:100) ~ "[65,100]"
+  )) %>% 
+  mutate(gender = case_when(
+    gender == "f'" ~ "f",
+    TRUE ~ gender
+  ))
+
+
+# Adjust the function for recategorization with lowercase variable names and without dashes
+recategorize_livelihood <- function(livelihood) {
+  case_when(
+    livelihood %in% c('employed_agriculture', 'self_agriculture', 'sell_anim_prod') ~ 'agriculture',
+    livelihood %in% c('daily_labour_non', 'daily_labour_skilled', 'unskilled', 'skilled') ~ 'labor',
+    livelihood %in% c('professional', 'clerical') ~ 'professional',
+    livelihood %in% c('sales', 'trader') ~ 'sales',
+    livelihood %in% c('domestic', 'other', 'not_working') ~ 'domestic_other',
+    TRUE ~ 'no_response_misc' # Including 'noresponse', 'army', and any others not explicitly listed
+  )
+}
+
+# Apply the recategorization to the data frames and count with variable names in lowercase
+quota_sample_survey <- quota_sample_survey %>%
+  mutate(livelihood = recategorize_livelihood(livelihood)) 
+
+household_sample_respondent <- household_sample_respondent %>%
+  mutate(livelihood = recategorize_livelihood(livelihood)) 
+```
+
+
+## estimate weighting targets using HH roster 
+
+```{r}
+# Define a function to calculate marginal percentages
+calculate_marginal_percentage <- function(data, group_var) {
+  data %>%
+    group_by(!!sym(group_var), health_zone) %>%
+    summarise(count = n()) %>%
+    mutate(covar = group_var) %>%
+    rename(value = !!sym(group_var)) %>%
+    group_by(health_zone) %>%
+    mutate(perc = count / sum(count))
+}
+
+# Apply the function for age_class and gender
+age_count <- calculate_marginal_percentage(household_sample_roster, "age_class")
+gender_count <- calculate_marginal_percentage(household_sample_roster, "gender")
+
+
+# Assuming your data frame is named 'df'
+household_sample_respondent <- household_sample_respondent %>%
+  mutate(modern_fuel_type = case_when(
+    cooking_fuel %in% c("charcoal", "coal_lignite", "electricity", "kerosene") ~ 1,
+    TRUE ~ 0
+  )) %>% 
+  mutate(manufactured_material_house  = case_when(
+    material_house %in% c("bricks", "cement", "cement_blocks", "coated_adobe") ~ 1,
+    TRUE ~ 0,
+  )) %>% 
+  mutate(bed_dummy = if_else(bed == "yes", 1, 0),
+         radio_dummy = if_else(radio == "yes", 1, 0))
+
+household_sample_respondent %>% count(modern_fuel_type,
+                                      manufactured_material_house,
+                                      bed_dummy, 
+                                      radio_dummy)
+
+household_sample_respondent <- household_sample_respondent %>% 
+  mutate(wealth_score = modern_fuel_type + manufactured_material_house + bed_dummy + radio_dummy )
+
+count_bed <- calculate_marginal_percentage(household_sample_respondent, "bed")
+count_house_material <- calculate_marginal_percentage(wealth_score, "material_house_category")
+count_radio <- calculate_marginal_percentage(household_sample_respondent, "radio")
+count_fueltype <- calculate_marginal_percentage(household_sample_respondent, "fuel_type")
+
+# Combine the results
+margin_pop_hh <- bind_rows(age_count, gender_count, count_bed, count_house_material, count_radio, count_fueltype) %>%
+  ungroup() %>%
+  dplyr::select(variable = covar, level = value, proportion = perc, health_zone)
+
+
+margin_pop_hh <- margin_pop_hh %>% 
+  mutate(proportion = round(proportion, 3))
+```
+
+```{r}
+test <- networksurvival::generate_raking_weights(weighting_targets = margin_pop_hh, survey_df = quota_sample_survey)
+```
+
+
+save results 
+
+```{r}
+write_csv(margin_pop_hh, here("data/weighting/weighting_raking_targets.csv"))
+```
+
+

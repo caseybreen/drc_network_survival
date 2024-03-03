@@ -4,8 +4,7 @@ author: Casey Breen
 ---
 
 
-Summary: Format household dataset 
-
+Summary: Clean up household survey datasets 
 
 ```{r}
 ## library packages 
@@ -14,17 +13,71 @@ library(here)
 ```
 
 
-```{r}
-################################################################################
-#                                 HH Survey                                    #
-################################################################################
+## Clean Household Survey - Deaths 
 
+No cleaning required 
+
+
+```{r}
+## read in hh deaths excel file 
+hh_sample_deaths <- readxl::read_xlsx(here("data", "data_raw", "2023-09-08", "hh_survey_2023-09-08.xlsx"), sheet = "deaths")
+
+## create health zone column 
+hh_sample_deaths <- hh_sample_deaths %>% 
+  mutate(health_zone = zone_de_sante_name)
+
+## write out hh deaths csv file 
+write_csv(hh_sample_deaths, here("data", "data_clean", "hh_sample_deaths.csv"))
+```
+
+## Clean Household Survey - Neighbors 
+
+```{r}
+## read in neighbor dataset  
+hh_sample_neighbors <- readxl::read_xlsx(here("data", "data_raw", "2023-09-08", "hh_survey_2023-09-08.xlsx"), sheet = "neighbours") %>%
+  mutate(tot_neighbour = as.numeric(tot_neighbour)) %>%
+  mutate(neighbour_deaths = as.numeric(neighbour_deaths))
+
+## write out neighbor dataset 
+write_csv(hh_sample_neighbors, here("data", "data_clean", "hh_sample_neighbors.csv"))
+```
+
+
+## Clean Household Survey - Household Respondents 
+
+```{r}
+## read in neighbor dataset  
+hh_sample_respondent <- readxl::read_xlsx(here("data", "data_raw", "2023-09-08", "hh_survey_2023-09-08.xlsx"), sheet = "household") 
+
+hh_sample_respondent <- hh_sample_respondent %>% 
+  filter(consent == "yes") %>% 
+  mutate(health_zone = zone_de_sante_name)
+
+## write out neighbor dataset 
+write_csv(hh_sample_respondent, here("data", "data_clean", "hh_sample_respondent.csv"))
+```
+
+## Clean Household Survey - Household Roster 
+
+```{r}
+## read in neighbor dataset  
+hh_sample_roster <- readxl::read_xlsx(here("data", "data_raw", "2023-09-08", "hh_survey_2023-09-08.xlsx"), sheet = "roster") 
+
+## write out neighbor dataset 
+write_csv(hh_sample_roster, here("data", "data_clean", "hh_sample_roster.csv"))
+```
+
+
+## Clean Household Survey - Mortality long 
+
+```{r}
 # hh_data <- read_excel("data/hh_survey_data.xlsx", col_types = "text")
-hh_data <- readxl::read_excel(path = here("data", "clean_data", "hh_survey_data.xlsx"), col_types = "text") %>%
+hh_data <- readxl::read_excel(path = here("data", "data_raw", "2023-09-08", "hh_survey_2023-09-08.xlsx"), sheet = "mortality_long") %>% 
   mutate(death = as.numeric(death))
 
-weight_HH <- readxl::read_xlsx(path = here("data", "clean_data", "weight_pop.xlsx"))
+weight_HH <- readxl::read_xlsx(path = here("data", "data_clean", "weight_pop.xlsx"))
 
+## mutate household data 
 hh_data <- hh_data %>%
   mutate(
     date_birth_date = lubridate::as_date(date_birth, format = "%m/%d/%Y"),
@@ -413,10 +466,8 @@ final_hh_data <- final_hh_data %>%
                       "60-64", "65-69", "70-74", "75-79", "80-84", "85+"
                     )
     ))
-```
 
-
-```{r}
+## join hh dataset 
 final_hh_data <- final_hh_data %>%
   left_join(weight_HH, by = "admin2") %>%
   mutate(health_zone = case_when(
@@ -426,59 +477,7 @@ final_hh_data <- final_hh_data %>%
   ))
 
 # hh_data <- read_excel("data/hh_survey_data.xlsx", col_types = "text")
-write_csv(final_hh_data, path = here("data", "clean_data", "hh_survey_data_clean.csv")) 
+write_csv(final_hh_data, file = here("data", "data_clean", "hh_sample_mortality_long.csv")) 
 ```
 
-
-
-
-```{r}
-hh_data_janfeb <- hh_data_janfeb %>%
-  mutate(
-    age_group = cut(as.numeric(age_years),
-      breaks = c(-1, 4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59, 64, 69, 74, 79, 84, Inf),
-      labels = c(
-        "0-4", "5-9", "10-14", "15-19",
-        "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59",
-        "60-64", "65-69", "70-74", "75-79", "80-84", "85+"
-      )
-    ),
-    death_under5 = ifelse(age_group == "0-4" & death == 1, 1, NA),
-    person_time_new_under5 = ifelse(age_group == "0-4", person_time_new, NA)
-  ) %>%
-  left_join(weight_HH, by = "admin2")
-
-
-hh_data_marapr <- hh_data_marapr %>%
-  mutate(
-    age_group = cut(as.numeric(age_years),
-      breaks = c(-1, 4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59, 64, 69, 74, 79, 84, Inf),
-      labels = c(
-        "0-4", "5-9", "10-14", "15-19",
-        "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59",
-        "60-64", "65-69", "70-74", "75-79", "80-84", "85+"
-      )
-    ),
-    death_under5 = ifelse(age_group == "0-4" & death == 1, 1, NA),
-    person_time_new_under5 = ifelse(age_group == "0-4", person_time_new, NA)
-  ) %>%
-  left_join(weight_HH, by = "admin2")
-
-
-hh_data_mayjun <- hh_data_mayjun %>%
-  mutate(
-    age_group = cut(as.numeric(age_years),
-      breaks = c(-1, 4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59, 64, 69, 74, 79, 84, Inf),
-      labels = c(
-        "0-4", "5-9", "10-14", "15-19",
-        "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59",
-        "60-64", "65-69", "70-74", "75-79", "80-84", "85+"
-      )
-    ),
-    death_under5 = ifelse(age_group == "0-4" & death == 1, 1, NA),
-    person_time_new_under5 = ifelse(age_group == "0-4", person_time_new, NA)
-  ) %>%
-  left_join(weight_HH, by = "admin2")
-
-```
 
