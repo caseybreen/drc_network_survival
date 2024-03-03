@@ -36,7 +36,7 @@ quota_sample_deaths <- read_csv(here("data", "data_clean", "quota_sample_deaths.
 weighting_targets_poststrat <- read_csv(here("data", "weighting", "weighting_targets.csv"))
 
 ## read in weighting targets 
-weighting_raking_targets <- read_csv(here("data", "weighting", "weighting_raking_targets.csv"))
+weighting_targets_raking <- read_csv(here("data", "weighting", "weighting_raking_targets.csv"))
 
 ## set seed
 set.seed(1)
@@ -48,43 +48,62 @@ set.seed(1)
 The code below produces estimates of the pooled cdr with corresponding 95% uncertainty intervals 
 
 ```{r}
-## calculate cdr 
-cdr_pooled_point <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+## calculate cdr raking 
+cdr_pooled_point_raking <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
                                                                   survey_df = quota_sample_survey,
                                                                   weight_col = "weight_raking")
 
-## run 10,000 bootstrap samples
-cdr_pooled_bootstrap <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+## calculate cdr raking 
+cdr_pooled_bootstrap_raking <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
                                                                    survey_df = quota_sample_survey,
-                                                                   weight_col = "weight_poststrat",
+                                                                   weight_col = "weight_raking",
                                                                    bootstrap = 100,
                                                                    weight_type = "raking",
-                                                                   weight_targets = weighting_raking_targets) 
+                                                                   weight_targets = weighting_targets_raking) 
 
 
-## run 10,000 bootstrap samples
-cdr_pooled_bootstrap <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+## calculate cdr poststratification  
+cdr_pooled_point_poststrat <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                  survey_df = quota_sample_survey,
+                                                                  weight_col = "weight_poststrat")
+
+
+## calculate cdr poststratification  
+cdr_pooled_bootstrap_poststrat <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
                                                                    survey_df = quota_sample_survey,
                                                                    bootstrap = 100,
+                                                                   weight_col = "weight_poststrat",
                                                                    weight_type = "poststrat",
-                                                                   weight_targets = weighting_targets_poststrat) 
-
+                                                                   weight_targets = weighting_targets_poststrat)
 
 ## uncertainty estimates 
-cdr_pooled_uncertainty <- cdr_pooled_bootstrap %>% 
+cdr_pooled_uncertainty_raking <- cdr_pooled_bootstrap_raking %>% 
   group_by(type, weights) %>% 
   summarize(death_rate_lower = quantile(death_rate, 0.025),
             death_rate_upper = quantile(death_rate, 0.975))
 
 ## combine point estimates and 
-cdr_pooled_point_uncertainty <- inner_join(cdr_pooled_point, cdr_pooled_uncertainty, by = c("weights", "type"))
+cdr_pooled_point_uncertainty_raking <- inner_join(cdr_pooled_point_raking, cdr_pooled_uncertainty_raking, by = c("weights", "type")) %>% 
+  filter(weights == "poststrat") %>% 
+  mutate(weights = "Raking")
+
+## uncertainty estimates 
+cdr_pooled_uncertainty_poststrat <- cdr_pooled_bootstrap_poststrat %>% 
+  group_by(type, weights) %>% 
+  summarize(death_rate_lower = quantile(death_rate, 0.025),
+            death_rate_upper = quantile(death_rate, 0.975))
+
+cdr_pooled_point_uncertainty_poststrat <- inner_join(cdr_pooled_point_poststrat, cdr_pooled_uncertainty_poststrat, by = c("weights", "type"))
+
 
 # Create visualizations 
-cdr_pooled_plot <- cdr_pooled_point_uncertainty %>% 
+cdr_pooled_plot <- cdr_pooled_point_uncertainty_poststrat %>% 
+  bind_rows(cdr_pooled_point_uncertainty_raking) %>% 
   filter(type != "household") %>% 
   mutate(weights = case_when(
     weights == "poststrat" ~ "Poststratification",
-    weights == "unweighted" ~ "Unweighted"
+    weights == "unweighted" ~ "Unweighted",
+    weights == "Raking" ~ "Raking"
   )) %>% 
   ggplot(aes(x = type, color = weights, y = death_rate, shape = weights, ymin = death_rate_lower, ymax = death_rate_upper)) + 
   geom_pointrange(position = position_dodge(.2), size = .75, fill = "white") +
@@ -103,9 +122,19 @@ ggsave(plot = cdr_pooled_plot, filename = here("figures", "cdr_pooled_plot.png")
 
 ```{r}
 ## estimate point estimates 
-cdr_pooled_hz_point <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths, survey_df = quota_sample_survey, weight_col = "weight_poststrat", subpopulation = "health_zone", bootstrap = NA)
+cdr_pooled_hz_point <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                  survey_df = quota_sample_survey,
+                                                                  weight_col = "weight_raking",
+                                                                  subpopulation = "health_zone",
+                                                                  bootstrap = NA)
 
-cdr_pooled_hz_boostrap <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths, survey_df = quota_sample_survey, weight_col = "weight_poststrat", subpopulation = "health_zone", bootstrap = 100)
+cdr_pooled_hz_boostrap <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                     survey_df = quota_sample_survey,
+                                                                     weight_col = "weight_raking",
+                                                                     subpopulation = "health_zone", 
+                                                                     weight_targets = weighting_targets_raking,
+                                                                     weight_type = "raking",
+                                                                     bootstrap = 100)
 
 ## zone de sante - Uncertainty Intervals
 cdr_pooled_hz_uncertainty <- cdr_pooled_hz_boostrap %>% 
@@ -137,10 +166,20 @@ ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures", "cdr_poole
 
 ```{r}
 ## estimate point estimates 
-cdr_monthly_point <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths, survey_df = quota_sample_survey, weight_col = "weight_poststrat", bootstrap = NA, monthly = T)
+cdr_monthly_point <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                survey_df = quota_sample_survey,
+                                                                weight_col = "weight_raking",
+                                                                bootstrap = NA,
+                                                                monthly = T)
 
 ## cdr monthly boostrap estimates 
-cdr_monthly_bootstrap <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths, survey_df = quota_sample_survey, weight_col = "weight_poststrat", bootstrap = 100, monthly = T)
+cdr_monthly_bootstrap <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                    survey_df = quota_sample_survey,
+                                                                    weight_col = "weight_raking",
+                                                                    weight_targets = weighting_targets_raking,
+                                                                    weight_type = "raking",
+                                                                    bootstrap = 100,
+                                                                    monthly = T)
 
 ## zone de sante 
 cdr_monthly_uncertainty <- cdr_monthly_bootstrap %>% 
@@ -173,9 +212,21 @@ ggsave(plot = cdr_monthly_plot, filename = here("figures", "cdr_monthly_plot.png
 
 ```{r}
 ## estimate point estimates 
-cdr_monthly_hz_point <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths, survey_df = quota_sample_survey, weight_col = "weight_poststrat", subpopulation = "health_zone", bootstrap = NA, monthly = T)
+cdr_monthly_hz_point <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                   survey_df = quota_sample_survey, 
+                                                                   weight_col = "weight_raking",
+                                                                   subpopulation = "health_zone",
+                                                                   bootstrap = NA,
+                                                                   monthly = T)
 
-cdr_monthly_hz_bootstrap <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths, survey_df = quota_sample_survey, weight_col = "weight_poststrat", subpopulation = "health_zone", bootstrap = 100, monthly = T)
+cdr_monthly_hz_bootstrap <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                       survey_df = quota_sample_survey, 
+                                                                       weight_col = "weight_raking",
+                                                                       weight_type = "raking", 
+                                                                       weight_targets = weighting_targets_raking,
+                                                                       subpopulation = "health_zone", 
+                                                                       bootstrap = 100, 
+                                                                       monthly = T)
 
 ## health_zone
 cdr_monthly_hz_uncertainty <- cdr_monthly_hz_bootstrap %>% 
@@ -190,6 +241,7 @@ cdr_monthly_hz_point_uncertainty <- inner_join(cdr_monthly_hz_uncertainty, cdr_m
 cdr_monthly_hr_plot <- cdr_monthly_hz_point_uncertainty %>% 
  filter(month != as_date("2023-06-01")) %>% 
   filter(weights == "poststrat") %>% 
+  filter(health_zone != "Nyemba") %>% 
   ggplot(aes(x = month, color = type, shape = type, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
   geom_pointrange( position = position_dodge(5), size = .75, fill = "white") +
   geom_line(linetype = "dashed", alpha = 0.3) + 
@@ -197,7 +249,7 @@ cdr_monthly_hr_plot <- cdr_monthly_hz_point_uncertainty %>%
   scale_color_viridis_d() + 
   # geom_hline(yintercept = 1, linetype = "dashed") + 
   theme_cowplot() + 
-  ylim(0, 1.1) + 
+  ylim(0, 1.4) + 
   theme(legend.position = "bottom", legend.title = element_blank()) + 
   labs(x = "Month of Death", y = "Estimate Average Daily Crude Death Rate") + 
   facet_wrap(~health_zone, ncol = 1)
@@ -209,20 +261,20 @@ ggsave(plot = cdr_monthly_hr_plot, filename = here("figures", "cdr_monthly_hz_pl
 
 
 ```{r}
-## combine cdr pooled 
-cdr_estimates <- bind_rows(cdr_pooled_point_uncertainty, cdr_pooled_hz_point_uncertainty) %>% 
-  mutate(health_zone = replace_na(health_zone, "Pooled")) %>% 
-  mutate(month = "Pooled")
-
-## combine cdr monthly 
-cdr_estimates_monthly <- bind_rows(cdr_monthly_hz_point_uncertainty, cdr_monthly_point_uncertainty) %>% 
-    mutate(health_zone = replace_na(health_zone, "Pooled")) %>% 
-  mutate(month = as.character(month))
-
-## dpylr::select columns for pre-registration 
-preregistered_estimates <- cdr_estimates %>% 
-  bind_rows(cdr_estimates_monthly) %>% 
-  dplyr::select(type, weights, health_zone, month, death_rate, death_rate_lower, death_rate_upper)
+# ## combine cdr pooled 
+# cdr_estimates <- bind_rows(cdr_pooled_point_uncertainty, cdr_pooled_hz_point_uncertainty) %>% 
+#   mutate(health_zone = replace_na(health_zone, "Pooled")) %>% 
+#   mutate(month = "Pooled")
+# 
+# ## combine cdr monthly 
+# cdr_estimates_monthly <- bind_rows(cdr_monthly_hz_point_uncertainty, cdr_monthly_point_uncertainty) %>% 
+#     mutate(health_zone = replace_na(health_zone, "Pooled")) %>% 
+#   mutate(month = as.character(month))
+# 
+# ## dpylr::select columns for pre-registration 
+# preregistered_estimates <- cdr_estimates %>% 
+#   bind_rows(cdr_estimates_monthly) %>% 
+#   dplyr::select(type, weights, health_zone, month, death_rate, death_rate_lower, death_rate_upper)
 
 
 # write_csv(preregistered_estimates, here("data", "preregistered_estimates", "preregistered_estimates.csv"))

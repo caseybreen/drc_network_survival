@@ -24,7 +24,8 @@ generate_raking_weights <- function(weighting_targets = weighting_targets, surve
 
   survey_df_kalemie <- survey_df %>%
     filter(health_zone == "Kalemie")  %>%
-    harvest(margin_pop_kalemie)
+    harvest(margin_pop_kalemie,
+            convergence = c(pct = 0.001, absolute = 1e-06, time = NULL, single_weight = NULL))
 
   # Nyunzu
   margin_pop_nyunzu <- weighting_targets %>%
@@ -33,16 +34,18 @@ generate_raking_weights <- function(weighting_targets = weighting_targets, surve
 
   survey_df_nyunzu <- survey_df %>%
     filter(health_zone == "Nyunzu") %>%
-    harvest(margin_pop_nyunzu)
+    harvest(margin_pop_nyunzu,
+            convergence = c(pct = 0.001, absolute = 1e-06, time = NULL, single_weight = NULL))
 
-  # Nyunzu
+  # Nyemba
   margin_pop_nyemba <- weighting_targets %>%
     filter(health_zone == "Nyemba") %>%
     dplyr::select(-health_zone)
 
-  survey_df_nyemba <- quota_sample_survey %>%
+  survey_df_nyemba <- survey_df %>%
     filter(health_zone == "Nyemba") %>%
-    harvest(margin_pop_nyunzu)
+    harvest(margin_pop_nyunzu,
+            convergence = c(pct = 0.001, absolute = 1e-06, time = NULL, single_weight = NULL))
 
 
   # Combine all into one DataFrame

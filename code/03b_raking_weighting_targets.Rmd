@@ -129,18 +129,19 @@ household_sample_respondent %>% count(modern_fuel_type,
                                       radio_dummy)
 
 household_sample_respondent <- household_sample_respondent %>% 
-  mutate(wealth_score = modern_fuel_type + manufactured_material_house + bed_dummy + radio_dummy )
+  mutate(wealth_score = modern_fuel_type + manufactured_material_house + bed_dummy + radio_dummy) %>% 
+  mutate(wealth_score_categorical = case_when(
+    wealth_score >= 2 ~ "2+", 
+    TRUE ~ as.character(wealth_score)
+  ))
 
-count_bed <- calculate_marginal_percentage(household_sample_respondent, "bed")
-count_house_material <- calculate_marginal_percentage(wealth_score, "material_house_category")
-count_radio <- calculate_marginal_percentage(household_sample_respondent, "radio")
-count_fueltype <- calculate_marginal_percentage(household_sample_respondent, "fuel_type")
+count_wealth_score <- calculate_marginal_percentage(household_sample_respondent, "wealth_score_categorical") %>% 
+  mutate(value = as.character(value))
 
 # Combine the results
-margin_pop_hh <- bind_rows(age_count, gender_count, count_bed, count_house_material, count_radio, count_fueltype) %>%
+margin_pop_hh <- bind_rows(age_count, gender_count, count_wealth_score) %>%
   ungroup() %>%
   dplyr::select(variable = covar, level = value, proportion = perc, health_zone)
-
 
 margin_pop_hh <- margin_pop_hh %>% 
   mutate(proportion = round(proportion, 3))

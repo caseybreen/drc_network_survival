@@ -44,6 +44,7 @@ calculate_marginal_percentage <- function(data, group_var) {
 age_count <- calculate_marginal_percentage(weighting_targets, "age_class")
 gender_count <- calculate_marginal_percentage(weighting_targets, "gender")
 
+
 # Combine the results
 margin_pop <- bind_rows(age_count, gender_count) %>%
   ungroup() %>%
@@ -65,43 +66,18 @@ survey_df <- survey_df %>%
   mutate(age_gender = paste0(gender, " | ", age_class))
 ```
 
-## construct weights 
+## construct raking weights 
 
 ```{r}
-# Kalemie
-margin_pop_kalemie <- margin_pop %>% 
-  filter(health_zone == "Kalemie") %>%
-  mutate(proportion = round(proportion, 4)) %>% 
-  dplyr::select(-health_zone)
+## 
+weighting_raking_targets <- read_csv(here("data", "weighting", "weighting_raking_targets.csv"))
 
-results_ns_kalemie <- survey_df %>% 
-  filter(health_zone == "Kalemie") %>% 
-  harvest(margin_pop_kalemie)
-
-# Nyunzu
-margin_pop_nyunzu <- margin_pop %>% 
-  filter(health_zone == "Nyunzu") %>%
-  dplyr::select(-health_zone)
-
-results_ns_nyunzu <- survey_df %>% 
-  filter(health_zone == "Nyunzu") %>% 
-  harvest(margin_pop_nyunzu)
-
-# Nyemba
-margin_pop_nyemba <- margin_pop %>% 
-  filter(health_zone == "Nyemba") %>%
-  dplyr::select(-health_zone)
-
-results_ns_nyemba <- survey_df %>% 
-  filter(health_zone == "Nyemba") %>% 
-  harvest(margin_pop_nyemba)
-
-# Combine all into one DataFrame
-survey_df_weighted <- bind_rows(results_ns_kalemie, results_ns_nyunzu, results_ns_nyemba) 
+survey_df_weighted <- networksurvival::generate_raking_weights(weighting_targets = weighting_raking_targets, survey_df = survey_df)
 
 ## survey df weighted 
 survey_df_weighted <- survey_df_weighted %>% 
-  rename(weight_raking = weights)
+  mutate(weight_raking = weights) %>% 
+  dplyr::select(-weights)
 ```
 
 ## poststratification weights 
@@ -111,6 +87,7 @@ Use pre-written poststratification function
 ```{r}
 ## poststratification weights 
 survey_df_weighted <- networksurvival::generate_poststrat_weights(weighting_targets = weighting_targets, survey_df = survey_df_weighted) 
+
 ```
 
 ## weights 

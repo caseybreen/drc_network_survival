@@ -168,16 +168,16 @@ margin_pop_kalemie <- margin_pop_hh %>%
 
 results_ns_kalemie <- quota_sample_survey %>% 
   filter(health_zone == "Kalemie")  %>% 
-  harvest(margin_pop_kalemie)
+  harvest(margin_pop_kalemie, verbose = 1)
 
 # Nyunzu
 margin_pop_nyunzu <- margin_pop_hh %>% 
   filter(health_zone == "Nyunzu") %>%
-  dplyr::select(-health_zone)
+  dplyr::select(-health_zone) 
 
 results_ns_nyunzu <- quota_sample_survey %>% 
   filter(health_zone == "Nyunzu") %>% 
-  harvest(margin_pop_nyunzu)
+  harvest(margin_pop_nyunzu, max_iterations = 10000, verbose = 2)
 
 # Nyunzu
 margin_pop_nyemba <- margin_pop_hh %>% 
@@ -212,6 +212,13 @@ death_weighted <- death_df %>%
 ## write out file 
 write_csv(death_weighted, here("data", "data_clean", "quota_sample_deaths.csv"))
 ```
+
+
+```{r}
+write_csv(quota_sample_survey_weighted, here("data", "data_clean", "quota_sample_survey_weighted.csv"))
+
+```
+
 
 
 

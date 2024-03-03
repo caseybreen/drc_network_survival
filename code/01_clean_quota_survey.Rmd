@@ -80,6 +80,29 @@ survey_df_clean <- survey_df_clean %>%
     cooking_fuel %in% c("charcoal", "coal_lignite", "electricity", "kerosene") ~ "Modern",
     TRUE ~ "Traditional"
   ))
+
+
+# Assuming your data frame is named 'df'
+survey_df_clean <- survey_df_clean %>%
+  mutate(modern_fuel_type = case_when(
+    cooking_fuel %in% c("charcoal", "coal_lignite", "electricity", "kerosene") ~ 1,
+    TRUE ~ 0
+  )) %>% 
+  mutate(manufactured_material_house  = case_when(
+    material_house %in% c("bricks", "cement", "cement_blocks", "coated_adobe") ~ 1,
+    TRUE ~ 0,
+  )) %>% 
+  mutate(bed_dummy = if_else(bed == "yes", 1, 0),
+         radio_dummy = if_else(radio == "yes", 1, 0))
+
+survey_df_clean <- survey_df_clean %>% 
+  mutate(wealth_score = modern_fuel_type + manufactured_material_house + bed_dummy + radio_dummy) %>% 
+  mutate(wealth_score_categorical = case_when(
+    wealth_score >= 2 ~ "2+", 
+    TRUE ~ as.character(wealth_score)
+  ))
+
+
 ```
 
 ## Clean data - death DF 
