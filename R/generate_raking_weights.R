@@ -12,49 +12,29 @@
 #'  generate_raking_weights(weighting_targets = population_data, survey_df = survey_data)
 #'
 #' @export
+# Assuming `harvest` and necessary libraries are loaded outside this function
 
-generate_raking_weights <- function(weighting_targets = weighting_targets, survey_df = survey_df) {
+generate_raking_weights <- function(weighting_targets, survey_df) {
 
-  # Kalemie
-  margin_pop_kalemie <- weighting_targets %>%
-    filter(health_zone == "Kalemie") %>%
-    # mutate(proportion = round(proportion, 4)) %>%
-    dplyr::select(-health_zone) %>%
-    as.data.frame()
+  # Inner function to apply weighting
+  apply_weighting <- function(zone, df, target_df) {
+    margin_pop <- target_df %>%
+      filter(health_zone == zone) %>%
+      select(-health_zone)
 
-  survey_df_kalemie <- survey_df %>%
-    filter(health_zone == "Kalemie")  %>%
-    harvest(margin_pop_kalemie,
-            convergence = c(pct = 0.001, absolute = 1e-06, time = NULL, single_weight = NULL))
+    df_filtered <- df %>%
+      filter(health_zone == zone) %>%
+      harvest(margin_pop, convergence = c(pct = 0.001, absolute = 1e-06),max_iterations = 1000)
 
-  # Nyunzu
-  margin_pop_nyunzu <- weighting_targets %>%
-    filter(health_zone == "Nyunzu") %>%
-    dplyr::select(-health_zone)
+    return(df_filtered)
+  }
 
-  survey_df_nyunzu <- survey_df %>%
-    filter(health_zone == "Nyunzu") %>%
-    harvest(margin_pop_nyunzu,
-            convergence = c(pct = 0.001, absolute = 1e-06, time = NULL, single_weight = NULL))
+  # Extract unique health zones from survey data
+  health_zones <- distinct(survey_df, health_zone) %>% pull(health_zone)
 
-  # Nyemba
-  margin_pop_nyemba <- weighting_targets %>%
-    filter(health_zone == "Nyemba") %>%
-    dplyr::select(-health_zone)
+  # Apply weighting and combine results
+  survey_df_weighted <- map_dfr(health_zones, apply_weighting, df = survey_df, target_df = weighting_targets)
 
-  survey_df_nyemba <- survey_df %>%
-    filter(health_zone == "Nyemba") %>%
-    harvest(margin_pop_nyunzu,
-            convergence = c(pct = 0.001, absolute = 1e-06, time = NULL, single_weight = NULL))
-
-
-  # Combine all into one DataFrame
-  survey_df_weighted <- bind_rows(survey_df_kalemie, survey_df_nyunzu, survey_df_nyemba)
-
-  ## survey df weighted
-  survey_df_weighted <- survey_df_weighted %>%
-    mutate(weight_raking = weights)
-
-  # return updated survey df
   return(survey_df_weighted)
 }
+

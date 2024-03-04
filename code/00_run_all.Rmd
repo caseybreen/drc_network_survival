@@ -12,7 +12,7 @@ The scripts are numbered in the order they should be run.
 ```{r}
 ## library packages 
 library(here)
-library(networksurvival)
+source(here("code", "helpers.R"))
 
 ## list of rmd files 
 

@@ -10,12 +10,9 @@ ages: (18–24, 25–34, 35–44, 45–54, 55–64, 65+), gender (female and mal
 
 
 ```{r}
-# Load required libraries
-library(tidyverse)
-library(caret) # For pre-processing
-library(psych) # For PCA
+## library packages 
 library(here)
-library(autumn)
+source(here("code", "helpers.R"))
 ```
 
 
@@ -24,7 +21,7 @@ library(autumn)
 ## read in survey df
 quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv"))
 household_sample_respondent <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv"))
-household_sample_roster <- read_csv(here("data", "data_clean", "hh_sample_roster.csv")) 
+household_sample_roster <- read_csv(here("data", "data_clean", "hh_sample_roster.csv"))
 ```
 
 
@@ -229,7 +226,7 @@ write_csv(quota_sample_survey_weighted, here("data", "data_clean", "quota_sample
 # Apply the function for age_class and gender
 age_count_survey <- calculate_marginal_percentage(quota_sample_survey, group_var = "age_class")
 gender_count_survey <- calculate_marginal_percentage(quota_sample_survey, "gender")
-bed <- calculate_marginal_percentage(quota_sample_survey, "bed") %>% 
+bed <- calculate_marginal_percentage(quota_sample_survey, "bed") %>% s
   mutate(value = as.character(value))
 count_house_material <- calculate_marginal_percentage(quota_sample_survey, "material_house_category") %>% 
   mutate(value = as.character(value))
@@ -237,10 +234,12 @@ count_radio <- calculate_marginal_percentage(quota_sample_survey, "radio") %>%
   mutate(value = as.character(value))
 count_fueltype <- calculate_marginal_percentage(quota_sample_survey, "fuel_type") %>% 
   mutate(value = as.character(value))
+count_wealth_score_categorical <- calculate_marginal_percentage(quota_sample_survey, "wealth_score_categorical") %>% 
+  mutate(value = as.character(value))
 
 # Combine the results
 margin_pop_survey <- bind_rows(age_count_survey, gender_count_survey,
-                               bed, count_house_material, count_radio,count_fueltype ) %>%
+                               bed, count_house_material, count_radio,count_fueltype, as.character ) %>%
   ungroup() %>%
   dplyr::select(variable = covar, level = value, proportion = perc, health_zone)
 
@@ -249,6 +248,7 @@ margin_comparison <- margin_pop_survey %>%
   left_join(margin_pop_hh %>% rename(proportion_pop = proportion), by = c("variable", "level", "health_zone"))
 
 margin_comparison %>% 
+  filter(health_zone != "Nyemba") %>%
   ggplot() +
   geom_segment(aes(xend = proportion, x = proportion_pop, y = level, yend = level),
                color = 'black',

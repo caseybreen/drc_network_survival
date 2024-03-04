@@ -1,19 +1,16 @@
 ---
-title: "R Notebook"
+title: "Construct weighting targets for raking"
 author: Casey Breen
 ---
 
+Summary: Construct weighting targets using household survey
+
 
 ```{r}
-# Load required libraries
-library(tidyverse)
-library(caret) # For pre-processing
-library(psych) # For PCA
+## library packages 
 library(here)
-library(autumn)
+source(here("code", "helpers.R"))
 ```
-
-
 
 ```{r}
 ## read in survey df
@@ -30,12 +27,12 @@ household_sample_roster <- household_sample_roster %>%
             by = c('_submission__uuid' = 'uuid_col')) 
 
 ## roster df drop ages 
-household_sample_roster <- household_sample_roster %>% 
+household_sample_roster_18plus <- household_sample_roster %>% 
   mutate(age_years = as.numeric(age_years)) %>% 
   filter(age_years >= 18)
 
 ## roster df gender 
-household_sample_roster <- household_sample_roster %>% 
+household_sample_roster_18plus <- household_sample_roster_18plus %>% 
   mutate(gender = sex_roster) %>% 
    mutate(age_class = case_when(
     age_years %in% c(18:24) ~ "[18,25)",
@@ -106,8 +103,8 @@ calculate_marginal_percentage <- function(data, group_var) {
 }
 
 # Apply the function for age_class and gender
-age_count <- calculate_marginal_percentage(household_sample_roster, "age_class")
-gender_count <- calculate_marginal_percentage(household_sample_roster, "gender")
+age_count <- calculate_marginal_percentage(household_sample_roster_18plus, "age_class")
+gender_count <- calculate_marginal_percentage(household_sample_roster_18plus, "gender")
 
 
 # Assuming your data frame is named 'df'
@@ -138,17 +135,73 @@ household_sample_respondent <- household_sample_respondent %>%
 count_wealth_score <- calculate_marginal_percentage(household_sample_respondent, "wealth_score_categorical") %>% 
   mutate(value = as.character(value))
 
+```
+
+
+```{r}
+hh_composition_targets <- household_sample_roster %>%
+  filter(`_submission__uuid` != "589828a4-7d17-46a8-94a5-0d66f3cc7795") %>% 
+  group_by(`_submission__uuid`, health_zone) %>% 
+  summarize(hh_size = n(),
+         age_u5 = sum(age_years < 5),
+         age_5_18 = sum(age_years >= 5 & age_years < 18), 
+         age_18plus = sum(age_years >= 18)) %>% 
+  mutate(age_u5_count = case_when(
+    age_u5 >= 2 ~ "2+",
+    age_u5 == 1 ~ "1",
+    age_u5 == 0 ~ "0"
+  ),
+  age_5_18_count = case_when(
+    age_5_18 >= 2 ~ "2+",
+    age_5_18 == 1 ~ "1",
+    age_5_18 == 0 ~ "0"
+  ),
+  age_18plus_count = case_when(
+    age_18plus >= 2 ~ "2+",
+    age_18plus == 1 ~ "1",
+    age_18plus == 0 ~ "0"
+  )) %>% 
+ select(health_zone, `_submission__uuid`, age_u5_count, age_5_18_count, age_18plus_count) %>% 
+ pivot_longer(-c(health_zone, `_submission__uuid`))
+
+
+hh_composition_household <- household_sample_roster %>%
+  filter(`_submission__uuid` != "589828a4-7d17-46a8-94a5-0d66f3cc7795") %>% 
+  group_by(`_submission__uuid`, health_zone) %>% 
+  summarize(hh_size = n()) %>%
+  ungroup() %>% 
+  mutate(hh_size_categorical = case_when(
+    hh_size %in% c(0, 1, 2, 3) ~"[0,4)",
+    hh_size %in% c(4, 5, 6) ~"[4,7)",
+    hh_size %in% c(7, 8, 9) ~"[7,10)",
+    TRUE ~ "10+"
+  )) %>% 
+  count(health_zone, hh_size_categorical) %>%
+  group_by(health_zone) %>%
+  mutate(proportion = n / sum(n)) %>% 
+  select(health_zone, level = hh_size_categorical, proportion) %>% 
+  mutate(variable = "hh_size_categorical")
+
+
+## hh composition 
+hh_composition_targets <- hh_composition_targets %>%
+    group_by(name, value, health_zone) %>%
+    summarise(count = n()) %>%
+    group_by(health_zone, name) %>%
+    mutate(perc = count / sum(count)) %>% 
+  select(health_zone, variable = name, level = value, proportion = perc)
+
+
 # Combine the results
 margin_pop_hh <- bind_rows(age_count, gender_count, count_wealth_score) %>%
   ungroup() %>%
-  dplyr::select(variable = covar, level = value, proportion = perc, health_zone)
-
-margin_pop_hh <- margin_pop_hh %>% 
-  mutate(proportion = round(proportion, 3))
+  dplyr::select(variable = covar, level = value, proportion = perc, health_zone) %>% 
+  bind_rows(hh_composition_targets, hh_composition_household)
 ```
 
+
 ```{r}
-test <- networksurvival::generate_raking_weights(weighting_targets = margin_pop_hh, survey_df = quota_sample_survey)
+test <- generate_raking_weights(weighting_targets = margin_pop_hh, survey_df = quota_sample_survey)
 ```
 
 

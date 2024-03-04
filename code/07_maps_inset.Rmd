@@ -6,12 +6,9 @@ author: Casey Breen
 Summary: Create a map of the continent of Africa, with an inset of Tanganyika Province
 
 ```{r}
-## libraries 
-library(tidyverse)
-library(data.table)
-library(sf)
-library(viridis)
-library(ggthemes)
+## library packages 
+library(here)
+source(here("code", "helpers.R"))
 
 ## aires de sante 
 aires_data <- sf::read_sf(here("data", "geography", "rdc_aires-de-sante"))

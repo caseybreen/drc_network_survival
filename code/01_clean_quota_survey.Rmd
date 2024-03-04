@@ -11,11 +11,8 @@ Summary: This script cleans the original network survey data from REACH Initiati
 
 ```{r}
 ## library packages 
-library(tidyverse)
-library(data.table)
-library(gt)
-library(janitor)
 library(here)
+source(here("code", "helpers.R"))
 
 ## read in data 
 survey_df <- readxl::read_xlsx(path = here("data", "data_raw", "2023-09-08", "quota_survey_2023-08-16.xlsx"), sheet = "main_networksurvival")
@@ -104,6 +101,37 @@ survey_df_clean <- survey_df_clean %>%
 
 
 ```
+
+## hh survey 
+
+
+```{r}
+survey_df_clean <- survey_df_clean %>% 
+  mutate(age_u5_count = num_total_hh_under5,
+  age_5_18_count = as.numeric(num_total_hh_under18), 
+  age_18plus_count = num_total_hh_over18) 
+
+
+survey_df_clean <- survey_df_clean %>%
+  mutate(age_u5_count = case_when(
+    age_u5_count >= 2 ~ "2+",
+    TRUE ~ as.character(age_u5_count)),
+    age_5_18_count = case_when(
+      age_5_18_count >= 2 ~ "2+",
+      TRUE ~ as.character(age_5_18_count)),
+    age_18plus_count = case_when(
+      age_18plus_count >= 2 ~ "2+",
+      TRUE ~ "1" )) 
+
+survey_df_clean <- survey_df_clean %>% 
+  mutate(hh_size_categorical = case_when(
+    num_total_hh %in% c(0, 1, 2, 3) ~"[0,4)",
+    num_total_hh %in% c(4, 5, 6) ~"[4,7)",
+    num_total_hh %in% c(7, 8, 9) ~"[7,10)",
+    TRUE ~ "10+"
+  ))
+```
+
 
 ## Clean data - death DF 
 

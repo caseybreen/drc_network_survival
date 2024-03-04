@@ -93,7 +93,7 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col, bootstrap
           mutate(weight_col = weight_poststrat)
       } else {
         boot_survey_df <- networksurvival::generate_raking_weights(weighting_targets = weight_targets, survey_df = boot_survey_df) %>%
-          mutate(weight_col = weight_raking)
+          mutate(weight_col = weights)
       }
 
       ## weights

@@ -5,11 +5,8 @@ author: Casey Breen
 
 ```{r}
 ## library packages 
-library(tidyverse)
-library(srvyr)
-library(cowplot)
 library(here)
-library(autumn)
+source(here("code", "helpers.R"))
 
 ## read in datasets
 hh_sample_mortality_long <- read_csv(here("data", "data_clean", "hh_sample_mortality_long.csv"))
@@ -70,9 +67,16 @@ hh_sample_deaths <- hh_sample_deaths %>%
 
 ```{r}
 ## estimate point estimates 
-cdr_pooled_hz_point <- networksurvival::compute_cdr_comprehensive(death_df = hh_sample_deaths, survey_df = hh_sample_respondent, weight_col = "weight_poststrat", subpopulation = "health_zone", bootstrap = NA)
+cdr_pooled_hz_point <- networksurvival::compute_cdr_comprehensive(death_df = hh_sample_deaths,
+                                                                  survey_df = hh_sample_respondent,
+                                                                  weight_col = "weight_poststrat",
+                                                                  subpopulation = "health_zone",
+                                                                  bootstrap = NA)
 
-cdr_pooled_hz_boostrap <- networksurvival::compute_cdr_comprehensive(death_df = hh_sample_deaths, survey_df = hh_sample_respondent, weight_col = "weight_poststrat", subpopulation = "health_zone", bootstrap = 100)
+cdr_pooled_hz_boostrap <- networksurvival::compute_cdr_comprehensive(death_df = hh_sample_deaths,
+                                                                     survey_df = hh_sample_respondent, 
+                                                                     weight_col = "weight_poststrat",
+                                                                     subpopulation = "health_zone", bootstrap = 100)
 
 ## zone de sante - Uncertainty Intervals
 cdr_pooled_hz_uncertainty <- cdr_pooled_hz_boostrap %>% 
@@ -156,7 +160,7 @@ final_results_plot <- cdr_pooled_hz_point_uncertainty_nonprob %>%
     survey == "hh" ~ "Household",
     survey == "quota" ~ "Quota"
   )) %>%
-  filter(health_zone %in% c("Kalemie", "Nyemba", "Nyunzu")) %>%
+  filter(health_zone %in% c("Kalemie", "Nyunzu")) %>%
   filter(weights == "poststrat") %>%
   # Assuming 'type' needs to be ordered as specified; adjust as necessary
   mutate(type = factor(type, levels = c("household", "kin", "neighbor", "blended"))) %>%

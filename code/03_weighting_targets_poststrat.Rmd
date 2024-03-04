@@ -6,14 +6,9 @@ author: Casey Breen
 Summary: Construct weighting targets using Worldpop 2020 UN-adjusted 100m rasters for DRC
 
 ```{r}
-## packages 
-library(tidyverse)
-library(sf)
-library(raster)
-library(exactextractr)
+## library packages 
 library(here)
-library(autumn)
-library(cowplot)
+source(here("code", "helpers.R"))
 ```
 
 ## Identify geographic regions 
