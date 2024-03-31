@@ -78,7 +78,6 @@ survey_df_clean <- survey_df_clean %>%
     TRUE ~ "Traditional"
   ))
 
-
 # Assuming your data frame is named 'df'
 survey_df_clean <- survey_df_clean %>%
   mutate(modern_fuel_type = case_when(
@@ -95,7 +94,7 @@ survey_df_clean <- survey_df_clean %>%
 survey_df_clean <- survey_df_clean %>% 
   mutate(wealth_score = modern_fuel_type + manufactured_material_house + bed_dummy + radio_dummy) %>% 
   mutate(wealth_score_categorical = case_when(
-    wealth_score >= 2 ~ "2+", 
+    wealth_score >= 2 ~ "1", 
     TRUE ~ as.character(wealth_score)
   ))
 
@@ -129,6 +128,10 @@ survey_df_clean <- survey_df_clean %>%
     num_total_hh %in% c(4, 5, 6) ~"[4,7)",
     num_total_hh %in% c(7, 8, 9) ~"[7,10)",
     TRUE ~ "10+"
+  )) %>% 
+  mutate(hh_size_categorical_crude = case_when(
+    num_total_hh %in% c(0:6) ~"[0,6)",
+    TRUE ~ "7+"
   ))
 ```
 

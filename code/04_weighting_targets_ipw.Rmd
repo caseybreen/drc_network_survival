@@ -1,0 +1,107 @@
+---
+title: "Construct weighting targets for raking"
+author: Casey Breen
+---
+
+Summary: Construct weighting targets using household survey
+
+
+```{r}
+## library packages 
+library(here)
+source(here("code", "helpers.R"))
+
+## read in survey df
+quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv"))
+household_sample_respondent <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv"))
+household_sample_roster <- read_csv(here("data", "data_clean", "hh_sample_roster.csv")) 
+```
+
+## microdataset for modeling 
+
+```{r}
+## Create a microdataset for modeling
+household_sample_respondent <- household_sample_respondent %>%
+    mutate(health_zone = zone_de_sante_name) %>% 
+    mutate(modern_fuel_type = case_when(
+    cooking_fuel %in% c("charcoal", "coal_lignite", "electricity", "kerosene") ~ 1,
+    TRUE ~ 0
+  )) %>% 
+  mutate(manufactured_material_house  = case_when(
+    material_house %in% c("bricks", "cement", "cement_blocks", "coated_adobe") ~ 1,
+    TRUE ~ 0,
+  )) %>% 
+  mutate(bed_dummy = if_else(bed == "yes", 1, 0),
+         radio_dummy = if_else(radio == "yes", 1, 0)) %>% 
+   mutate(age = as.numeric(age_repondant)) %>% 
+  mutate(gender = sexe_repondant) %>% 
+  mutate(education_level = case_when(
+    education_level == "dontknow" ~ "none",
+    TRUE ~  education_level
+  )) %>% 
+   mutate(age_class = case_when(
+    age %in% c(18:24) ~ "[18,25)",
+    age %in% c(25:34) ~ "[25,35)",
+    age %in% c(33:44) ~ "[35,45)",
+    age %in% c(45:54) ~ "[45,55)",
+    age %in% c(55:64) ~ "[55,65)",
+    age %in% c(65:100) ~ "[65,100]"
+  )) %>% 
+  mutate(gender = case_when(
+    gender == "f'" ~ "f",
+    TRUE ~ gender
+  ))
+
+household_sample_respondent_df <- household_sample_respondent %>%
+  select(uuid_col, cooking_fuel, material_house, modern_fuel_type, manufactured_material_house, radio, bed, `_id`, age_class, gender, health_zone)
+
+household_sample_roster_df <- household_sample_roster %>%
+   mutate(gender = sex_roster) %>% 
+   mutate(age_class = case_when(
+    age_years %in% c(18:24) ~ "[18,25)",
+    age_years %in% c(25:34) ~ "[25,35)",
+    age_years %in% c(33:44) ~ "[35,45)",
+    age_years %in% c(45:54) ~ "[45,55)",
+    age_years %in% c(55:64) ~ "[55,65)",
+    age_years %in% c(65:100) ~ "[65,100]"
+  )) %>% 
+  filter(`_submission__uuid` != "589828a4-7d17-46a8-94a5-0d66f3cc7795") %>% 
+  group_by(`_submission__uuid`) %>% 
+  summarize(hh_size = n(),
+            age_u5 = sum(age_years < 5),
+            age_5_18 = sum(age_years >= 5 & age_years < 18), 
+            age_18plus = sum(age_years >= 18)) %>%
+  mutate(age_u5_count = case_when(
+    age_u5 >= 2 ~ "2+",
+    age_u5 == 1 ~ "1",
+    age_u5 == 0 ~ "0"
+  ),
+  age_5_18_count = case_when(
+    age_5_18 >= 2 ~ "2+",
+    age_5_18 == 1 ~ "1",
+    age_5_18 == 0 ~ "0"
+  ),
+  age_18plus_count = case_when(
+    age_18plus >= 2 ~ "2+",
+    age_18plus == 1 ~ "1",
+    age_18plus == 0 ~ "0"
+  )) %>% 
+  ungroup() %>% 
+  mutate(hh_size_categorical = case_when(
+    hh_size %in% c(0, 1, 2, 3) ~"[0,4)",
+    hh_size %in% c(4, 5, 6) ~"[4,7)",
+    hh_size %in% c(7, 8, 9) ~"[7,10)",
+    TRUE ~ "10+"
+  )) %>% 
+  mutate(hh_size_categorical_crude = case_when(
+    hh_size %in% c(0:6) ~"[0,6)",
+    TRUE ~ "7+"
+  ))
+
+hh_weighting_micro_df <- household_sample_roster_df %>% 
+  left_join(household_sample_respondent_df, by = c('_submission__uuid' = 'uuid_col'))
+
+
+write_csv(hh_weighting_micro_df, here("data/weighting/hh_weighting_micro_df.csv"))
+
+```

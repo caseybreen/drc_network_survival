@@ -91,10 +91,14 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col, bootstrap
       if (weight_type == "poststrat") {
         boot_survey_df <- networksurvival::generate_poststrat_weights(weighting_targets = weight_targets, survey_df = boot_survey_df) %>%
           mutate(weight_col = weight_poststrat)
-      } else {
+      } else if (weight_type == "ipw") {
+        boot_survey_df <- networksurvival::generate_ipw_weights(weighting_targets = weight_targets, survey_df = boot_survey_df) %>%
+          mutate(weight_col = weight_ipw)
+      } else {  # This else branch can be for raking or a default case
         boot_survey_df <- networksurvival::generate_raking_weights(weighting_targets = weight_targets, survey_df = boot_survey_df) %>%
-          mutate(weight_col = weights)
+          mutate(weight_col = weight_raking)  # Assuming 'weight_raking' is your column name for raking weights
       }
+
 
       ## weights
       weights <- boot_survey_df %>%

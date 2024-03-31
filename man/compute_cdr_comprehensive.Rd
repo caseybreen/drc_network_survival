@@ -7,7 +7,7 @@
 compute_cdr_comprehensive(
   death_df,
   survey_df,
-  weight_col = "weight_poststrat",
+  weight_col,
   bootstrap = NA,
   monthly = FALSE,
   subpopulation = NULL,

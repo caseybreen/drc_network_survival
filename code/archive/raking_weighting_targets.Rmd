@@ -1,24 +1,9 @@
 ---
-title: "Construct weighting targets for raking"
+title: "Weighting Targets raking"
 author: Casey Breen
 ---
 
-Summary: Construct weighting targets using household survey
-
-
-```{r}
-## library packages 
-library(here)
-source(here("code", "helpers.R"))
-```
-
-```{r}
-## read in survey df
-quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv"))
-household_sample_respondent <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv"))
-household_sample_roster <- read_csv(here("data", "data_clean", "hh_sample_roster.csv")) 
-```
-
+weighting targets raking 
 
 ```{r}
 ## roster df 
@@ -128,7 +113,7 @@ household_sample_respondent %>% count(modern_fuel_type,
 household_sample_respondent <- household_sample_respondent %>% 
   mutate(wealth_score = modern_fuel_type + manufactured_material_house + bed_dummy + radio_dummy) %>% 
   mutate(wealth_score_categorical = case_when(
-    wealth_score >= 2 ~ "2+", 
+    wealth_score >= 1 ~ "1", 
     TRUE ~ as.character(wealth_score)
   ))
 
@@ -136,6 +121,9 @@ count_wealth_score <- calculate_marginal_percentage(household_sample_respondent,
   mutate(value = as.character(value))
 
 ```
+
+
+
 
 
 ```{r}
@@ -176,11 +164,15 @@ hh_composition_household <- household_sample_roster %>%
     hh_size %in% c(7, 8, 9) ~"[7,10)",
     TRUE ~ "10+"
   )) %>% 
-  count(health_zone, hh_size_categorical) %>%
+  mutate(hh_size_categorical_crude = case_when(
+    hh_size %in% c(0:6) ~"[0,6)",
+    TRUE ~ "7+"
+  )) %>% 
+  count(health_zone, hh_size_categorical_crude) %>%
   group_by(health_zone) %>%
   mutate(proportion = n / sum(n)) %>% 
-  select(health_zone, level = hh_size_categorical, proportion) %>% 
-  mutate(variable = "hh_size_categorical")
+  select(health_zone, level = hh_size_categorical_crude, proportion) %>% 
+  mutate(variable = "hh_size_categorical_crude")
 
 
 ## hh composition 
@@ -200,15 +192,15 @@ margin_pop_hh <- bind_rows(age_count, gender_count, count_wealth_score) %>%
 ```
 
 
-```{r}
-test <- generate_raking_weights(weighting_targets = margin_pop_hh, survey_df = quota_sample_survey)
-```
-
-
 save results 
 
 ```{r}
 write_csv(margin_pop_hh, here("data/weighting/weighting_raking_targets.csv"))
 ```
+
+
+
+
+
 
 

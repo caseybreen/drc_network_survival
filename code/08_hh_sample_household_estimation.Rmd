@@ -11,7 +11,6 @@ Summary: Estimate HH mortality rate
 library(here)
 source(here("code", "helpers.R"))
 
-
 ## read in datasets
 hh_sample_mortality_long <- read_csv(here("data", "data_clean", "hh_sample_mortality_long.csv"))
 hh_sample_deaths <- read_csv(here("data", "data_clean", "hh_sample_deaths.csv"))
@@ -59,6 +58,27 @@ age_specific_cdr_plot <- age_specific_cdr %>%
 age_specific_cdr_plot %>%
   ggsave(filename = here("figures/age_specific_cdr.png"), height = 5, width = 7)
 ```
+
+
+
+
+```{r}
+## age specific cdr 
+age_specific_cdr <- srvey_mortality_fullperiod_ns %>%
+  summarise(x = survey_ratio(
+    numerator = death * 10000,
+    denominator = person_time_new,
+    vartype = "ci",
+    deff = "replace"
+  )) %>%
+  mutate(across(where(is.numeric), ~ round(., 2))) %>%
+  mutate(variable = "cmr") %>%
+  mutate(x_low = case_when(
+    x_low < 0 ~ 0,
+    TRUE ~ x_low
+  ))
+```
+
 
 
 ```{r}

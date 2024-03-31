@@ -24,7 +24,7 @@ generate_raking_weights <- function(weighting_targets, survey_df) {
 
     df_filtered <- df %>%
       filter(health_zone == zone) %>%
-      harvest(margin_pop, convergence = c(pct = 0.001, absolute = 1e-06),max_iterations = 1000)
+      harvest(margin_pop, convergence = c(pct = 0.001, absolute = 1e-06), max_iterations = 1000)
 
     return(df_filtered)
   }
@@ -33,7 +33,8 @@ generate_raking_weights <- function(weighting_targets, survey_df) {
   health_zones <- distinct(survey_df, health_zone) %>% pull(health_zone)
 
   # Apply weighting and combine results
-  survey_df_weighted <- map_dfr(health_zones, apply_weighting, df = survey_df, target_df = weighting_targets)
+  survey_df_weighted <- map_dfr(health_zones, apply_weighting, df = survey_df, target_df = weighting_targets) %>%
+    mutate(weight_raking = weights)
 
   return(survey_df_weighted)
 }
