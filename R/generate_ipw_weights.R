@@ -38,16 +38,18 @@ generate_ipw_weights <- function(weighting_targets_micro, survey_df) {
     zone_df <- weighting_df %>% filter(health_zone == zone)
 
     # Step 1: Fit a logistic regression model for the current zone
-    selection_model <- glm(inclusion ~ gender*age_class + hh_size_categorical + radio + bed + manufactured_material_house +
+    selection_model <- glm(inclusion ~ gender + age_class + hh_size_categorical + radio + bed + manufactured_material_house +
                              modern_fuel_type + age_u5_count + age_5_18_count + age_18plus_count, data = zone_df, family = "binomial")
 
     # Step 2: Predict the selection probabilities and calculate IPW for the current zone
     zone_df <- survey_df %>%
       filter(health_zone == zone) %>%
       mutate(selection_prob = predict(selection_model, newdata = ., type = "response"),
-             ipw = 1 / selection_prob,
+             ipw = 1 / selection_prob) %>%
+      mutate(
              weight_ipw = ipw / mean(ipw, na.rm = TRUE),
-             weight_ipw = ifelse(weight_ipw > 10, 10, weight_ipw)) %>%
+             weight_ipw = ifelse(weight_ipw > 5, 5, weight_ipw)) %>%
+      mutate(weight_ipw = weight_ipw / mean(weight_ipw, na.rm = TRUE)) %>% ## normalize after trimming extreme weights
       select(health_zone, weight_ipw, uuid_ki)
 
     # Bind rows with the overall dataframe

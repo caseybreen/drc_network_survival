@@ -1,0 +1,59 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+## library packages 
+library(here)
+source(here("code", "helpers.R"))
+
+## read in datasets
+hh_sample_mortality_long <- read_csv(here("data", "data_clean", "hh_sample_mortality_long.csv"))
+hh_sample_deaths <- read_csv(here("data", "data_clean", "hh_sample_deaths.csv"))
+hh_sample_neighbors <- read_csv(here("data", "data_clean", "hh_sample_neighbors.csv"))
+hh_sample_respondent_df <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv"))
+```
+
+
+
+
+
+```{r}
+hh_sample_respondent_df %>% 
+  group_by(sexe_repondant) %>% 
+  filter(sexe_repondant != "f'") %>% 
+  summarize(brothers = mean(a_brothers_over18, na.rm = T) + mean(b_brothers_over18, na.rm = T),
+            sisters = mean(a_sisters_over18, na.rm = T) + mean(b_sisters_over18, na.rm = T))
+
+
+quota_sample_survey %>% 
+  group_by(ki_sex) %>% 
+  filter(ki_sex != "f'") %>% 
+  summarize(brothers = mean(a_brothers_over18, na.rm = T) + mean(b_brothers_over18, na.rm = T),
+            sisters = mean(a_sisters_over18, na.rm = T) + mean(b_sisters_over18, na.rm = T))
+
+
+quota_sample_survey %>% 
+  group_by(respondent_sex = ki_sex) %>% 
+  filter(ki_sex != "f'") %>% 
+  summarize(brothers = sum(a_brothers_over18, na.rm = T) + sum(b_brothers_over18, na.rm = T),
+            sisters = sum(a_sisters_over18, na.rm = T) + sum(b_sisters_over18, na.rm = T))
+
+
+hh_sample_respondent_df %>% 
+  group_by(respondent_sex = sexe_repondant) %>% 
+  filter(sexe_repondant != "f'") %>% 
+  summarize(brothers = sum(a_brothers_over18, na.rm = T) + sum(b_brothers_over18, na.rm = T),
+            sisters = sum(a_sisters_over18, na.rm = T) + sum(b_sisters_over18, na.rm = T))
+
+
+hh_sample_respondent_df %>% 
+  group_by(respondent_sex = sexe_repondant) %>% 
+  filter(sexe_repondant != "f'") %>% 
+  summarize(brothers = mean(a_brothers_over18, na.rm = T) + mean(b_brothers_over18, na.rm = T),
+            sisters = mean(a_sisters_over18, na.rm = T) + mean(b_sisters_over18, na.rm = T))
+```
+

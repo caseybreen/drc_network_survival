@@ -44,7 +44,7 @@ calculate_cdr_neighbor <- function(death_df, survey_df, weight_col = "weights", 
 
   # Calculate death counts
   death_count <- death_df %>%
-    filter(`death_relationship/neighbour` == 1 | `death_relationship/household` == 1) %>%
+    filter(`death_relationship/neighbour` == 1 | `death_relationship/household` == 1) %>% #
     summarize(n_deaths = sum(.data[[weight_col]]), n_deaths_unweighted = n())
 
 

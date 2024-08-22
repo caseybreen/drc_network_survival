@@ -1,0 +1,584 @@
+---
+title: Internal validity checks
+author: Casey Breen
+---
+
+
+- As we said on the call, I think checks based age/sex group should work in principle - but when I looked at the instrument again, I realized that the age groups being so broad is kind of an issue; these checks really work for groups that were directly interviewed for the survey. So, I think the best place to start is something like comparing things like:
+
+- number of living female kin 18+ reported by male respondents (who are 18+)
+	- number of living male kin 18+ reported by female respondents (who are 18+)
+  I believe that, conceptually, those two quantities should be equal. We could also make this comparison for specific pairs of relationships under which this should hold. For example:
+	- brothers/sisters
+	- cousins
+	- parents/children
+	- grandparents/grandchildren
+	- [i think we can’t use aunts/uncles, b/c we don’t have nieces/nephews]
+
+
+```{r}
+library(tidyverse)
+library(here)
+library(boot)
+library(cowplot)
+
+cudb <- c("#49b7fc", "#ff7b00", "#17d898", "#ff0083", "#0015ff", "#e5d200", "#999999")
+cud <- c("#D55E00", "#56B4E9", "#009E73", "#CC79A7", "#0072B2", "#E69F00", "#F0E442", "#999999")
+```
+
+
+## scratch 
+
+```{r}
+quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv")) # %>% filter(health_zone != "Nyunzu")
+
+```
+
+
+
+```{r}
+# Summarize the data
+# Summarize the data with sums and standard errors
+summary_data <- quota_sample_survey %>%
+  group_by(gender) %>%
+  summarise(
+    num_brothers_unweighted = sum(num_total_kin_brothers_over18),
+    num_sisters_unweighted = sum(num_total_kin_sisters_over18),
+    
+    se_brothers_unweighted = sqrt(sum((num_total_kin_brothers_over18 - mean(num_total_kin_brothers_over18))^2) / n()),
+    se_sisters_unweighted = sqrt(sum((num_total_kin_sisters_over18 - mean(num_total_kin_sisters_over18))^2) / n()),
+
+    num_brothers_ipw = sum(num_total_kin_brothers_over18 * weight_ipw),
+    num_sisters_ipw = sum(num_total_kin_sisters_over18 * weight_ipw),
+    
+    se_brothers_ipw = sqrt(sum(weight_ipw^2 * (num_total_kin_brothers_over18 - mean(num_total_kin_brothers_over18))^2) / n()),
+    se_sisters_ipw = sqrt(sum(weight_ipw^2 * (num_total_kin_sisters_over18 - mean(num_total_kin_sisters_over18))^2) / n()),
+    
+    num_brothers_poststrat = sum(num_total_kin_brothers_over18 * weight_poststrat),
+    num_sisters_poststrat = sum(num_total_kin_sisters_over18 * weight_poststrat),
+    
+    se_brothers_poststrat = sqrt(sum(weight_poststrat^2 * (num_total_kin_brothers_over18 - mean(num_total_kin_brothers_over18))^2) / n()),
+    se_sisters_poststrat = sqrt(sum(weight_poststrat^2 * (num_total_kin_sisters_over18 - mean(num_total_kin_sisters_over18))^2) / n())
+  )
+
+
+
+# Define a function to compute sums for brothers and sisters across all weight types
+boot_fn <- function(data, indices) {
+  boot_data <- data[indices, ]
+  
+  # Compute the sums for each relationship and weight type
+  c(
+    brothers_unweighted = sum(boot_data$num_total_kin_brothers_over18),
+    sisters_unweighted = sum(boot_data$num_total_kin_sisters_over18),
+    
+    brothers_ipw = sum(boot_data$num_total_kin_brothers_over18 * boot_data$weight_ipw),
+    sisters_ipw = sum(boot_data$num_total_kin_sisters_over18 * boot_data$weight_ipw),
+    
+    brothers_poststrat = sum(boot_data$num_total_kin_brothers_over18 * boot_data$weight_poststrat),
+    sisters_poststrat = sum(boot_data$num_total_kin_sisters_over18 * boot_data$weight_poststrat)
+  )
+}
+
+# Apply bootstrapping for each gender
+bootstrap_results <- quota_sample_survey %>%
+  group_by(gender) %>%
+  do({
+    results <- boot(data = ., statistic = boot_fn, R = 1000)
+    
+    # Extract standard errors
+    se_values <- apply(results$t, 2, sd)
+    
+    # Return the original estimates (t0) and the corresponding standard errors (se_values)
+    tibble(
+      num_brothers_unweighted = results$t0[1],
+      se_brothers_unweighted = se_values[1],
+      
+      num_sisters_unweighted = results$t0[2],
+      se_sisters_unweighted = se_values[2],
+      
+      num_brothers_ipw = results$t0[3],
+      se_brothers_ipw = se_values[3],
+      
+      num_sisters_ipw = results$t0[4],
+      se_sisters_ipw = se_values[4],
+      
+      num_brothers_poststrat = results$t0[5],
+      se_brothers_poststrat = se_values[5],
+      
+      num_sisters_poststrat = results$t0[6],
+      se_sisters_poststrat = se_values[6]
+    )
+  })
+
+# Pivot the data for easier plotting
+summary_long <- bootstrap_results %>%
+  pivot_longer(cols = starts_with("num_"), 
+               names_to = c("relationship", "weight"),
+               names_pattern = "num_(.*)_(.*)",
+               values_to = "count") %>%
+  pivot_longer(cols = starts_with("se_"),
+               names_to = c("relationship_se", "weight_se"),
+               names_pattern = "se_(.*)_(.*)",
+               values_to = "se") %>%
+  filter(relationship == relationship_se & weight == weight_se)
+
+# Create the plot
+sibling_plot <- summary_long %>% 
+  mutate(weight = case_when(
+    weight == "unweighted" ~ "Unweighted",
+    weight == "ipw" ~ "Inverse Probability",
+    weight == "poststrat" ~ "Post-stratification"
+  )) %>%
+  mutate(gender_respondent = case_when(
+    gender == "f" ~ "female respondent",
+    gender == "m" ~ "male respondent"
+  )) %>% 
+  filter(gender_respondent == "female respondent" & relationship == "brothers" | gender_respondent == "male respondent" & relationship == "sisters") %>%
+ggplot(aes(x = weight, y = count, fill = relationship)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = count - 1.96 * se, ymax = count + 1.96* se), position = position_dodge(width = 0.9), width = 0.25) + 
+#  facet_wrap(~ gender_respondent) +
+  labs(title = "Reciprocal Sibling Relationships",
+       x = "",
+       y = "Count",
+       fill = "Weight Type") +
+  scale_fill_manual(values = c(cud[[1]], cud[[2]]), 
+                    labels = c("Male respondents reported\nconnections to sisters", 
+                               "Female respondents reported\nconnections to brothers")) +
+  theme_cowplot() + 
+  theme(legend.position = "bottom", legend.title = element_blank())
+
+
+```
+
+```{r}
+# Define a function to compute sums for male and female cousins across all weight types
+boot_fn_cousins <- function(data, indices) {
+  boot_data <- data[indices, ]
+  
+  # Compute the sums for each relationship and weight type
+  c(
+    male_cousins_unweighted = sum(boot_data$num_total_kin_male_cousins_over18),
+    female_cousins_unweighted = sum(boot_data$num_total_kin_female_cousins_over18),
+    
+    male_cousins_ipw = sum(boot_data$num_total_kin_male_cousins_over18 * boot_data$weight_ipw),
+    female_cousins_ipw = sum(boot_data$num_total_kin_female_cousins_over18 * boot_data$weight_ipw),
+    
+    male_cousins_poststrat = sum(boot_data$num_total_kin_male_cousins_over18 * boot_data$weight_poststrat),
+    female_cousins_poststrat = sum(boot_data$num_total_kin_female_cousins_over18 * boot_data$weight_poststrat)
+  )
+}
+
+# Apply bootstrapping for each gender
+bootstrap_results_cousins <- quota_sample_survey %>%
+  group_by(gender) %>%
+  do({
+    results <- boot(data = ., statistic = boot_fn_cousins, R = 1000)
+    
+    # Extract standard errors
+    se_values <- apply(results$t, 2, sd)
+    
+    # Return the original estimates (t0) and the corresponding standard errors (se_values)
+    tibble(
+      male_cousins_unweighted = results$t0[1],
+      se_male_cousins_unweighted = se_values[1],
+      
+      female_cousins_unweighted = results$t0[2],
+      se_female_cousins_unweighted = se_values[2],
+      
+      male_cousins_ipw = results$t0[3],
+      se_male_cousins_ipw = se_values[3],
+      
+      female_cousins_ipw = results$t0[4],
+      se_female_cousins_ipw = se_values[4],
+      
+      male_cousins_poststrat = results$t0[5],
+      se_male_cousins_poststrat = se_values[5],
+      
+      female_cousins_poststrat = results$t0[6],
+      se_female_cousins_poststrat = se_values[6]
+    )
+  })
+
+
+# Pivot the data for easier plotting
+summary_long_cousins <- bootstrap_results_cousins %>%
+  pivot_longer(cols = starts_with("male_cousins") | starts_with("female_cousins"), 
+               names_to = c("relationship", "weight"),
+               names_pattern = "(.*)_(.*)",
+               values_to = "count") %>%
+  pivot_longer(cols = starts_with("se_"),
+               names_to = c("relationship_se", "weight_se"),
+               names_pattern = "se_(.*)_(.*)",
+               values_to = "se") %>%
+  filter(relationship == relationship_se & weight == weight_se)
+
+
+# Create the plot with error bars
+cousin_plot <- summary_long_cousins %>% 
+  mutate(gender_respondent = case_when(
+    gender == "f" ~ "female respondent",
+    gender == "m" ~ "male respondent"
+  )) %>% 
+    mutate(weight = case_when(
+    weight == "unweighted" ~ "Unweighted",
+    weight == "ipw" ~ "Inverse Probability",
+    weight == "poststrat" ~ "Post-stratification"
+  )) %>%
+  filter(gender_respondent == "female respondent" & relationship == "male_cousins" | 
+         gender_respondent == "male respondent" & relationship == "female_cousins") %>%
+  
+  ggplot(aes(x = weight, y = count, fill = relationship)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = count - se, ymax = count + se), position = position_dodge(width = 0.9), width = 0.25) +
+  labs(title = "Reciprocal Cousin Relationships",
+       x = "",
+       y = "Count",
+       fill = "Cousin Type") +
+  theme_cowplot() +
+  scale_fill_manual(values = c(cud[[3]], cud[[4]]),  # Use the first two colors from your palette
+                    labels = c("Male respondents reported\nconnections to female cousins", 
+                               "Female respondents reported\nconnections to male cousins")) + # Custom labels with line breaks # Keep nejm palette with updated labels
+  theme_cowplot() + 
+  theme(legend.position = "bottom", legend.title = element_blank())
+
+
+```
+
+```{r}
+# Define a function to compute sums for parents and children over 18 across all weight types
+boot_fn_parents_children <- function(data, indices) {
+  boot_data <- data[indices, ]
+  
+  # Compute the sums for each relationship and weight type
+  c(
+    parents_unweighted = sum(boot_data$num_total_kin_fathers_over18) + sum(boot_data$num_total_kin_mothers_over18),
+    children_over_18_unweighted = sum(boot_data$num_total_kin_male_child_over18) + sum(boot_data$num_total_kin_female_child_over18),
+    
+    parents_ipw = sum(boot_data$num_total_kin_fathers_over18 * boot_data$weight_ipw) + sum(boot_data$num_total_kin_mothers_over18 * boot_data$weight_ipw),
+    children_over_18_ipw = sum(boot_data$num_total_kin_male_child_over18 * boot_data$weight_ipw) + sum(boot_data$num_total_kin_female_child_over18 * boot_data$weight_ipw),
+    
+    parents_poststrat = sum(boot_data$num_total_kin_fathers_over18 * boot_data$weight_poststrat) + sum(boot_data$num_total_kin_mothers_over18 * boot_data$weight_poststrat),
+    children_over_18_poststrat = sum(boot_data$num_total_kin_male_child_over18 * boot_data$weight_poststrat) + sum(boot_data$num_total_kin_female_child_over18 * boot_data$weight_poststrat)
+  )
+}
+
+# Apply bootstrapping
+bootstrap_results_parents_children <- quota_sample_survey %>%
+  do({
+    results <- boot(data = ., statistic = boot_fn_parents_children, R = 1000)
+    
+    # Extract standard errors
+    se_values <- apply(results$t, 2, sd)
+    
+    # Return the original estimates (t0) and the corresponding standard errors (se_values)
+    tibble(
+      parents_unweighted = results$t0[1],
+      se_parents_unweighted = se_values[1],
+      
+      children_over_18_unweighted = results$t0[2],
+      se_children_over_18_unweighted = se_values[2],
+      
+      parents_ipw = results$t0[3],
+      se_parents_ipw = se_values[3],
+      
+      children_over_18_ipw = results$t0[4],
+      se_children_over_18_ipw = se_values[4],
+      
+      parents_poststrat = results$t0[5],
+      se_parents_poststrat = se_values[5],
+      
+      children_over_18_poststrat = results$t0[6],
+      se_children_over_18_poststrat = se_values[6]
+    )
+  })
+
+
+# Pivot the data for easier plotting
+summary_long_parents_children <- bootstrap_results_parents_children %>%
+  pivot_longer(cols = starts_with("parents") | starts_with("children"),
+               names_to = c("relationship", "weight"),
+               names_pattern = "(.*)_(.*)",
+               values_to = "count") %>%
+  pivot_longer(cols = starts_with("se_"),
+               names_to = c("relationship_se", "weight_se"),
+               names_pattern = "se_(.*)_(.*)",
+               values_to = "se") %>%
+  filter(relationship == relationship_se & weight == weight_se)
+
+
+# Create the plot with error bars
+parent_child_plot <- summary_long_parents_children %>%
+    mutate(weight = case_when(
+    weight == "unweighted" ~ "Unweighted",
+    weight == "ipw" ~ "Inverse Probability",
+    weight == "poststrat" ~ "Post-stratification"
+  )) %>%
+    ggplot(aes(x = weight, y = count, fill = relationship)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.7, color = "black") +
+  geom_errorbar(aes(ymin = count - se, ymax = count + se), position = position_dodge(width = 0.9), width = 0.25) +
+  labs(title = "Reciprocal Parent-Child Relationships",
+       x = "",
+       y = "Count",
+       fill = "Cousin Type") +
+  theme_cowplot() +
+    scale_fill_manual(values = c(cud[[5]], cud[[6]]),  # Use the first two colors from your palette
+                    labels = c("Respondents reported\nconnections to children (18+)", 
+                               "Respondents reported\nconnections to parents")) + # Custom labels with line breaks # Keep nejm palette with updated labels
+  theme(legend.position = "bottom", legend.title = element_blank())
+
+```
+
+
+
+```{r}
+combined_plot <- cowplot::plot_grid(parent_child_plot,
+                   cousin_plot,
+                   sibling_plot,
+                   nrow = 3, 
+                   labels = "AUTO")
+
+ggsave(combined_plot, filename = here("figures/reciprocal_checks.png"), width = 8, height = 11, dpi = 300, bg = "white")
+```
+
+
+```{r}
+household_age_profile <- quota_sample_survey %>%
+  summarise(
+    under_5 = sum(num_total_hh_under5) / sum(num_total_hh),
+    under_18 = sum(num_total_hh_under18) / sum(num_total_hh),
+    over_18 = sum(num_total_hh_over18) / sum(num_total_hh)) %>% 
+  mutate(relation = "household")
+
+neighbor_age_profile <- quota_sample_survey %>%
+  summarise(
+    under_5 = sum(num_total_neighbour_under5) / sum(num_total_neighbour),
+    under_18 = sum(num_total_neighbour_under18) / sum(num_total_neighbour),
+    over_18 = sum(num_total_neighbour_over18) / sum(num_total_neighbour)) %>% 
+  mutate(relation = "neighbor")
+
+kin_age_profile <- quota_sample_survey %>% 
+ summarise(
+    under_5 = sum(num_total_kin_under5) / sum(num_total_kin),
+    under_18 = sum(num_total_kin_under18) / sum(num_total_kin),
+    over_18 = sum(num_total_kin_over18) / sum(num_total_kin)) %>% 
+  mutate(relation = "kin") 
+
+# Combine the two summaries into one data frame
+combined_summary <- bind_rows(household_age_profile, neighbor_age_profile, kin_age_profile)
+
+# Pivot the data to longer format for easier plotting or further analysis
+combined_summary_long <- combined_summary %>%
+  pivot_longer(cols = c(under_5, under_18, over_18), names_to = "age_group", values_to = "proportion") %>% 
+  mutate(relation = factor(relation, levels = c("neighbor", "household", "kin"))) %>% 
+  mutate(age_group = case_when(
+    age_group == "under_5" ~ "Under 5",
+    age_group == "under_18" ~ "Under 18, over 5",
+    age_group == "over_18" ~ "Over 18"
+  ))
+
+
+quota_sample_prop_within_groups_unweighted <- ggplot(combined_summary_long, aes(x = age_group, y = proportion, fill = relation, label = paste0(round(proportion * 100, 0), "%"))) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9), alpha = 0.6, color = "black") +
+  geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +  # Add text with dodge position
+  labs(
+    title = "Quota sample (unweighted)",
+    x = "Age Group",
+    y = "Proportion"
+  ) +
+  theme_cowplot() +
+  scale_fill_manual(values = c("household" = "#1f77b4", "neighbor" = "#ff7f0e", "kin" = "darkgreen")) +  # Ensure that "kin" is quoted correctly
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, .6))  # Format the y-axis as a percentage
+
+```
+
+
+
+
+```{r}
+# Household age profile with weights
+household_age_profile <- quota_sample_survey %>%
+  summarise(
+    under_5 = sum(num_total_hh_under5 * weight_ipw) / sum(num_total_hh * weight_ipw),
+    under_18 = sum(num_total_hh_under18 * weight_ipw) / sum(num_total_hh * weight_ipw),
+    over_18 = sum(num_total_hh_over18 * weight_ipw) / sum(num_total_hh * weight_ipw)
+  ) %>% 
+  mutate(relation = "household")
+
+# Neighbor age profile with weights
+neighbor_age_profile <- quota_sample_survey %>%
+  summarise(
+    under_5 = sum(num_total_neighbour_under5 * weight_ipw) / sum(num_total_neighbour * weight_ipw),
+    under_18 = sum(num_total_neighbour_under18 * weight_ipw) / sum(num_total_neighbour * weight_ipw),
+    over_18 = sum(num_total_neighbour_over18 * weight_ipw) / sum(num_total_neighbour * weight_ipw)
+  ) %>% 
+  mutate(relation = "neighbor")
+
+# Kin age profile with weights
+kin_age_profile <- quota_sample_survey %>% 
+  summarise(
+    under_5 = sum(num_total_kin_under5 * weight_ipw) / sum(num_total_kin * weight_ipw),
+    under_18 = sum(num_total_kin_under18 * weight_ipw) / sum(num_total_kin * weight_ipw),
+    over_18 = sum(num_total_kin_over18 * weight_ipw) / sum(num_total_kin * weight_ipw)
+  ) %>% 
+  mutate(relation = "kin")
+
+
+# Combine the two summaries into one data frame
+combined_summary <- bind_rows(household_age_profile, neighbor_age_profile, kin_age_profile)
+
+# Pivot the data to longer format for easier plotting or further analysis
+combined_summary_long <- combined_summary %>%
+  pivot_longer(cols = c(under_5, under_18, over_18), names_to = "age_group", values_to = "proportion") %>% 
+  mutate(relation = factor(relation, levels = c("neighbor", "household", "kin"))) %>% 
+  mutate(age_group = case_when(
+    age_group == "under_5" ~ "Under 5",
+    age_group == "under_18" ~ "Under 18, over 5",
+    age_group == "over_18" ~ "Over 18"
+  ))
+
+
+quota_sample_prop_within_groups_weighted <- ggplot(combined_summary_long, aes(x = age_group, y = proportion, fill = relation, label = paste0(round(proportion * 100, 0), "%"))) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9), alpha = 0.6, color = "black") +
+  geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +  # Add text with dodge position
+  labs(
+    title = "Quota sample (IPW weighted)",
+    x = "Age Group",
+    y = "Proportion"
+  ) +
+  theme_cowplot() +
+  scale_fill_manual(values = c("household" = "#1f77b4", "neighbor" = "#ff7f0e", "kin" = "darkgreen")) +  # Ensure that "kin" is quoted correctly
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, .6))  # Format the y-axis as a percentage
+
+
+quota_sample_prop_within_groups_combined <- plot_grid(quota_sample_prop_within_groups_unweighted, quota_sample_prop_within_groups_weighted)
+
+
+ggsave(quota_sample_prop_within_groups_combined, filename = here("figures/age_profile_quota.png"), width = 12, height = 5, dpi = 300, bg = "white")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+household_sample_respondent <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv"))
+
+household_sample_respondent %>% 
+  ungroup() %>% 
+  summarize(
+    num_total_neighbour_under5 = sum(coalesce(a_sum_neighbours_male_under5, 0) +
+                                     coalesce(a_sum_neighbours_female_under5, 0) +
+                                     coalesce(b_sum_neighbours_male_under5, 0) +
+                                     coalesce(b_sum_neighbours_female_under5, 0)),
+    
+    num_total_neighbour_under18 = sum(coalesce(a_sum_neighbours_male_under18, 0) +
+                                      coalesce(a_sum_neighbours_female_under18, 0) +
+                                      coalesce(b_sum_neighbours_male_under18, 0) +
+                                      coalesce(b_sum_neighbours_female_under18, 0)),
+    
+    num_total_neighbour_over18 = sum(coalesce(a_sum_neighbours_male_over18, 0) +
+                                     coalesce(a_sum_neighbours_female_over18, 0) +
+                                     coalesce(b_sum_neighbours_male_over18, 0) +
+                                     coalesce(b_sum_neighbours_female_over18, 0))) %>% 
+  mutate(id = 1) %>% 
+  pivot_longer(-id) %>% 
+  mutate(prop = value / sum(value))
+```
+
+
+
+```{r}
+household_sample_roster <- read_csv(here("data", "data_clean", "hh_sample_roster.csv"))  
+
+
+household_sample_roster %>% 
+  mutate(age_cat = case_when(
+    calc_final_age_years < 6 ~ "under_5",
+    calc_final_age_years >= 6 & calc_final_age_years <= 18 ~ "under_18",
+    calc_final_age_years > 18 ~ "over_18"
+  )) %>% 
+  count(age_cat) %>% mutate(prop = n / sum(n))
+```
+
+
+
+```{r}
+household_sample_roster %>% 
+  summarize(median(age_years, na.rm = T),
+            mean(age_years, na.rm = T))
+```
+
+```{r}
+household_sample_respondent %>% 
+  left_join(household_sample_roster, by = c('uuid_col' ='_submission__uuid')) %>% 
+  count(uuid_col) %>% 
+  summarize(mean(n))
+```
+
+```{r}
+quota_sample_survey %>% 
+  summarize(1000 * sum(num_births_neighbours * weight_ipw, na.rm = T) / sum(num_total_neighbour * weight_ipw, na.rm = T) * 3.016529)
+
+
+quota_sample_survey %>% 
+  mutate(diff= as.numeric(today - as.Date("2023-01-01"))) %>% 
+  summarize(mean(diff))
+
+
+```
+
+
+```{r}
+household_sample_roster
+
+household_sample_roster %>%
+  mutate(year_birth = case_when(
+    final_ind_dob > as_date("2023-01-01") ~ 2023, 
+    final_ind_dob > as_date("2022-01-01") & final_ind_dob <= as_date("2023-01-01") ~ 2022,
+    final_ind_dob > as_date("2021-01-01") & final_ind_dob <= as_date("2022-01-01") ~ 2021)) %>%
+  count(year_birth) %>%
+  mutate(prop = n / sum(n))
+
+```
+
+```{r}
+pyramid_df <- household_sample_roster %>% 
+  count(sex_roster, age_years) 
+
+
+# Create a population pyramid
+pyramid_df %>%
+  mutate(n = ifelse(sex_roster == "m", -n, n)) %>%  # Negative counts for males
+  ggplot(aes(x = age_years, y = n, fill = sex_roster)) +
+  geom_bar(stat = "identity", width = 0.9) +
+  coord_flip() +
+  scale_y_continuous(labels = abs) +  # Make the y-axis labels positive
+  labs(title = "Population Pyramid",
+       x = "Age",
+       y = "Population Count") +
+  scale_fill_manual(values = c("m" = "skyblue", "f" = "pink"),  # Adjust colors to match the data
+                    labels = c("Male", "Female")) +  # Adjust the legend labels
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+
+
+
+
+
+
+

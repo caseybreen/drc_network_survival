@@ -53,7 +53,21 @@ household_sample_respondent <- household_sample_respondent %>%
   ))
 
 household_sample_respondent_df <- household_sample_respondent %>%
-  select(uuid_col, cooking_fuel, material_house, modern_fuel_type, manufactured_material_house, radio, bed, `_id`, age_class, gender, health_zone)
+  select(uuid_col, cooking_fuel, material_house, modern_fuel_type, manufactured_material_house, radio, bed, `_id`, health_zone)
+
+household_sample_roster_df_individual <- household_sample_roster %>%
+   mutate(gender = sex_roster) %>% 
+   mutate(age_class = case_when(
+    age_years %in% c(18:24) ~ "[18,25)",
+    age_years %in% c(25:34) ~ "[25,35)",
+    age_years %in% c(33:44) ~ "[35,45)",
+    age_years %in% c(45:54) ~ "[45,55)",
+    age_years %in% c(55:64) ~ "[55,65)",
+    age_years %in% c(65:100) ~ "[65,100]"
+  ))  %>% 
+  filter(!is.na(age_class)) %>% 
+  select("_submission__uuid", gender, age_class)
+
 
 household_sample_roster_df <- household_sample_roster %>%
    mutate(gender = sex_roster) %>% 
@@ -96,9 +110,13 @@ household_sample_roster_df <- household_sample_roster %>%
   mutate(hh_size_categorical_crude = case_when(
     hh_size %in% c(0:6) ~"[0,6)",
     TRUE ~ "7+"
-  ))
+  )) 
 
-hh_weighting_micro_df <- household_sample_roster_df %>% 
+# hh_weighting_micro_df <- household_sample_roster_df %>% 
+#   left_join(household_sample_respondent_df, by = c('_submission__uuid' = 'uuid_col'))
+
+hh_weighting_micro_df <- household_sample_roster_df_individual %>% 
+  left_join(household_sample_roster_df, by = c('_submission__uuid')) %>% 
   left_join(household_sample_respondent_df, by = c('_submission__uuid' = 'uuid_col'))
 
 

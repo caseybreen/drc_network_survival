@@ -22,10 +22,15 @@ library(here)
 source(here("code", "helpers.R"))
 
 ## read in survey df
-quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv")) %>% filter(health_zone != "Nyemba")
+quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv")) # %>% filter(health_zone != "Nyunzu")
+
+quota_sample_survey <- quota_sample_survey %>%
+  filter(!(start_month == as_date("2023-06-01") & health_zone == "Nyunzu"))
 
 ## read in death df 
-quota_sample_deaths <- read_csv(here("data", "data_clean", "quota_sample_deaths.csv")) %>%  filter(health_zone != "Nyemba")
+quota_sample_deaths <- read_csv(here("data", "data_clean", "quota_sample_deaths.csv")) # %>%  filter(health_zone != "Nyunzu")
+
+quota_sample_deaths <- quota_sample_deaths %>% mutate(report_month = floor_date(death_date_dc, "month")) %>% filter(!(report_month == as_date("2023-06-01") & health_zone == "Nyunzu"))
 
 ## read in weighting targets 
 weighting_targets_poststrat <- read_csv(here("data", "weighting", "weighting_targets.csv")) 
@@ -46,20 +51,6 @@ set.seed(1)
 The code below produces estimates of the pooled cdr with corresponding 95% uncertainty intervals 
 
 ```{r}
-# ## calculate cdr raking 
-# cdr_pooled_point_raking <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
-#                                                                   survey_df = quota_sample_survey,
-#                                                                   weight_col = "weight_raking")
-# 
-# ## calculate cdr raking 
-# cdr_pooled_bootstrap_raking <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
-#                                                                    survey_df = quota_sample_survey,
-#                                                                    weight_col = "weight_raking",
-#                                                                    bootstrap = 100,
-#                                                                    weight_type = "raking",
-#                                                                    weight_targets = weighting_targets_raking) 
- 
-
 ## calculate cdr poststratification  
 cdr_pooled_point_poststrat <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
                                                                   survey_df = quota_sample_survey,
@@ -83,7 +74,7 @@ cdr_pooled_point_ipw <- networksurvival::compute_cdr_comprehensive(death_df = qu
 ## calculate cdr ipw  
 cdr_pooled_bootstrap_ipw <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,       
                                                                    survey_df = quota_sample_survey, 
-                                                                   bootstrap = 300,
+                                                                   bootstrap = 100,
                                                                    weight_col = "weight_ipw",
                                                                    weight_type = "ipw",
                                                                    weight_targets = weight_targets_ipw)
@@ -99,16 +90,6 @@ cdr_pooled_point_uncertainty_ipw <- inner_join(cdr_pooled_point_ipw, cdr_pooled_
   filter(weights == "poststrat") %>% 
   mutate(weights = "ipw")
 
-# ## uncertainty estimates 
-# cdr_pooled_uncertainty_raking <- cdr_pooled_bootstrap_raking %>% 
-#   group_by(type, weights) %>% 
-#   summarize(death_rate_lower = quantile(death_rate, 0.025),
-#             death_rate_upper = quantile(death_rate, 0.975))
-# 
-# ## combine point estimates and 
-# cdr_pooled_point_uncertainty_raking <- inner_join(cdr_pooled_point_raking, cdr_pooled_uncertainty_raking, by = c("weights", "type")) %>% 
-#   filter(weights == "poststrat") %>% 
-#   mutate(weights = "Raking")
 
 ## uncertainty estimates 
 cdr_pooled_uncertainty_poststrat <- cdr_pooled_bootstrap_poststrat %>% 
@@ -140,9 +121,63 @@ cdr_pooled_plot <- cdr_pooled_point_uncertainty_ipw %>%
   theme(legend.position = "bottom", legend.title = element_blank()) + 
   labs(x = "Network Tie", y = "Crude Death Rate \n (per 10,000 person days)")
 
+
+# Create visualizations 
+cdr_pooled_plot_unweighted <- cdr_pooled_point_uncertainty_ipw %>% 
+  bind_rows(cdr_pooled_point_uncertainty_poststrat) %>%
+  mutate(death_rate = ifelse(weights == "unweighted", death_rate, -999)) %>% 
+  filter(type != "household") %>% 
+  mutate(
+    type = factor(type, levels = c("kin", "neighbor", "blended")),
+    weights = factor(case_when(
+      weights == "poststrat" ~ "Poststratification",
+      weights == "unweighted" ~ "Unweighted",
+      weights == "ipw" ~ "Inverse Probability"
+    ), levels = c("Unweighted", "Poststratification", "Inverse Probability"))
+  ) %>%
+  ggplot(aes(x = type, color = weights, y = death_rate, shape = weights, ymin = death_rate_lower, ymax = death_rate_upper)) + 
+  geom_pointrange(position = position_dodge(.2), size = .75, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23, 24)) +
+  ggsci::scale_color_lancet() + 
+  scale_color_manual(values = cud) + 
+  ylim(0, 1) + 
+  theme_half_open(12) + 
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  labs(x = "Network Tie", y = "Crude Death Rate \n (per 10,000 person days)")
+
+
+# Create visualizations 
+cdr_pooled_plot_poststrat <- cdr_pooled_point_uncertainty_ipw %>% 
+  bind_rows(cdr_pooled_point_uncertainty_poststrat) %>%
+  mutate(death_rate = ifelse(weights %in% c("unweighted", "poststrat"), death_rate, -999)) %>% 
+  filter(type != "household") %>% 
+  mutate(
+    type = factor(type, levels = c("kin", "neighbor", "blended")),
+    weights = factor(case_when(
+      weights == "poststrat" ~ "Poststratification",
+      weights == "unweighted" ~ "Unweighted",
+      weights == "ipw" ~ "Inverse Probability"
+    ), levels = c("Unweighted", "Poststratification", "Inverse Probability"))
+  ) %>%
+  ggplot(aes(x = type, color = weights, y = death_rate, shape = weights, ymin = death_rate_lower, ymax = death_rate_upper)) + 
+  geom_pointrange(position = position_dodge(.2), size = .75, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23, 24)) +
+  ggsci::scale_color_lancet() + 
+  scale_color_manual(values = cud) + 
+  ylim(0, 1) + 
+  theme_half_open(12) + 
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  labs(x = "Network Tie", y = "Crude Death Rate \n (per 10,000 person days)")
+
+
 ## save main estimate plot 
 ggsave(plot = cdr_pooled_plot, filename = here("figures", "cdr_pooled_plot.png"), width = 6, height = 4)
+ggsave(plot = cdr_pooled_plot_unweighted, filename = here("figures", "cdr_pooled_plot_unweighted.png"), width = 6, height = 4)
+ggsave(plot = cdr_pooled_plot_poststrat, filename = here("figures", "cdr_pooled_plot_poststrat.png"), width = 6, height = 4)
+
 ```
+
+
 
 ## CDR disaggregated by health zone (Nyemba and Kalemie only, excluding Nyunzu)
 
@@ -182,9 +217,20 @@ cdr_pooled_heath_zones_plot <- cdr_pooled_hz_point_uncertainty %>%
   ylim(0, 1) + 
   theme_cowplot() + 
   theme(legend.position = "bottom", legend.title = element_blank()) + 
-  labs(x = "Health Zone", y = "Estimated Average Daily Crude Death Rate")
+  labs(x = "Health Zone", y = "Crude Death Rate \n (per 10,000 person days)")
 
 ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures", "cdr_pooled_heath_zones_plot.png"), width = 7, height = 5)
+```
+
+
+
+```{r}
+## estimate point estimates 
+cdr_pooled_hz_point <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                  survey_df = quota_sample_survey,
+                                                                  weight_col = "weight_ipw",
+                                                                  subpopulation = "health_zone",
+                                                                  bootstrap = NA)
 ```
 
 
@@ -204,7 +250,7 @@ cdr_monthly_bootstrap <- networksurvival::compute_cdr_comprehensive(death_df = q
                                                                     weight_col = "weight_ipw",
                                                                     weight_targets = weight_targets_ipw,
                                                                     weight_type = "ipw",
-                                                                    bootstrap = 100,
+                                                                    bootstrap = 300,
                                                                     monthly = T)
 
 ## zone de sante 
@@ -232,6 +278,10 @@ cdr_monthly_plot <- cdr_monthly_point_uncertainty %>%
 
 ggsave(plot = cdr_monthly_plot, filename = here("figures", "cdr_monthly_plot.png"), width = 6, height = 4)
 ```
+
+
+
+
 
 
 ## CDR disaggregated by month and health zone (Nyemba and Kalemie only, excluding Nyunzu)

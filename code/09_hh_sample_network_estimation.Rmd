@@ -7,16 +7,23 @@ author: Casey Breen
 ## library packages 
 library(here)
 source(here("code", "helpers.R"))
-
+ 
 ## read in datasets
 hh_sample_mortality_long <- read_csv(here("data", "data_clean", "hh_sample_mortality_long.csv"))
 hh_sample_deaths <- read_csv(here("data", "data_clean", "hh_sample_deaths.csv"))
 hh_sample_neighbors <- read_csv(here("data", "data_clean", "hh_sample_neighbors.csv"))
-hh_sample_respondent <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv"))
+hh_sample_respondent <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv")) 
 
 ## read in survey df
-quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv")) %>% filter(health_zone != "Nyemba")
-quota_sample_deaths <- read_csv(here("data", "data_clean", "quota_sample_deaths.csv")) %>% filter(health_zone != "Nyemba")
+## read in survey df
+quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv")) # %>% filter(health_zone != "Nyunzu")
+quota_sample_survey <- quota_sample_survey %>%
+  filter(!(start_month == as_date("2023-06-01") & health_zone == "Nyunzu"))
+
+## read in death df 
+quota_sample_deaths <- read_csv(here("data", "data_clean", "quota_sample_deaths.csv")) # %>%  filter(health_zone != "Nyunzu")
+quota_sample_deaths <- quota_sample_deaths %>% mutate(report_month = floor_date(death_date_dc, "month")) %>% filter(!(report_month == as_date("2023-06-01") & health_zone == "Nyunzu"))
+
 
 ## read in weighting targets 
 weighting_targets <- read_csv(here("data", "weighting", "weighting_targets.csv"))
@@ -51,8 +58,9 @@ hh_sample_respondent <- hh_sample_respondent %>%
 hh_sample_respondent <- hh_sample_respondent %>% 
   mutate(num_total_kin = coalesce(a_total_kin, b_total_kin)) %>% 
   mutate(num_total_kin = as.numeric(num_total_kin)) %>% 
-  mutate(a_sum_neighbours = coalesce(a_sum_neighbours, b_sum_neighbours)) %>% 
-  mutate(num_total_hh_neighbour = as.numeric(a_sum_neighbours) + as.numeric(num_hh)) %>% 
+  mutate(sum_neighbours = coalesce(a_sum_neighbours, b_sum_neighbours)) %>% 
+  mutate(num_total_hh_neighbour = as.numeric(sum_neighbours) + as.numeric(num_hh)) %>% 
+  mutate(num_total_neighbour = as.numeric(sum_neighbours)) %>% 
   mutate(num_total_hh = as.numeric(num_hh)) %>% 
   mutate(start_month = 1,
          weight_poststrat = 1) %>% 
@@ -65,123 +73,6 @@ hh_sample_deaths <- hh_sample_deaths %>%
   mutate(uuid_ki = `_submission__uuid`) %>% 
   mutate(weight_poststrat = 1)
 ```
-
-```{r}
-## estimate point estimates 
-cdr_pooled_hz_point <- networksurvival::compute_cdr_comprehensive(death_df = hh_sample_deaths,
-                                                                  survey_df = hh_sample_respondent,
-                                                                  weight_col = "weight_poststrat",
-                                                                  subpopulation = "health_zone",
-                                                                  bootstrap = NA)
-
-cdr_pooled_hz_boostrap <- networksurvival::compute_cdr_comprehensive(death_df = hh_sample_deaths,
-                                                                     survey_df = hh_sample_respondent, 
-                                                                     weight_col = "weight_poststrat",
-                                                                     subpopulation = "health_zone", bootstrap = 100)
-
-## zone de sante - Uncertainty Intervals
-cdr_pooled_hz_uncertainty <- cdr_pooled_hz_boostrap %>% 
-  group_by(health_zone, type, weights) %>% 
-  summarize(death_rate_lower = quantile(death_rate, 0.025),
-            death_rate_upper = quantile(death_rate, 0.975)) 
-
-## perform join 
-cdr_pooled_hz_point_uncertainty <- inner_join(cdr_pooled_hz_point, cdr_pooled_hz_uncertainty, by = c("type", "health_zone", "weights")) %>% 
-  mutate(survey = "hh")
-
-## visualize results 
-cdr_pooled_heath_zones_plot <- cdr_pooled_hz_point_uncertainty %>% 
-  filter(weights == "poststrat") %>% 
-#   filter(type != "household") %>% 
-  ggplot(aes(x = health_zone, color = type, shape = type, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
-  geom_pointrange( position = position_dodge(.25), size = 1, fill = "white") +
-  scale_shape_manual(values = c(21, 22, 23, 24)) +
-  scale_color_viridis_d() +  
-  ylim(0, 1.2) + 
-  theme_cowplot() + 
-  theme(legend.position = "bottom", legend.title = element_blank()) + 
-  labs(x = "Zone de Sante",
-       y = "Estimated Average Daily Crude Death Rate",
-       labs = "HH Survey Estimates")
-
-ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures", "cdr_pooled_heath_zones_plot.png"), width = 7, height = 5)
-```
-
-
-
-
-
-```{r}
-## estimate point estimates 
-cdr_pooled_hz_point_nonprob <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
-                                                                          survey_df = quota_sample_survey,
-                                                                          weight_col = "weight_ipw",
-                                                                          subpopulation = "health_zone",
-                                                                          bootstrap = NA)
-
-cdr_pooled_hz_boostrap_nonprob <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
-                                                                             survey_df = quota_sample_survey, 
-                                                                             weight_col = "weight_ipw",
-                                                                             weight_targets = weight_targets_ipw,
-                                                                             weight_type = "ipw", 
-                                                                             subpopulation = "health_zone", 
-                                                                             bootstrap = 100)
-
-## zone de sante - Uncertainty Intervals
-cdr_pooled_hz_uncertainty_nonprob <- cdr_pooled_hz_boostrap_nonprob %>% 
-  group_by(health_zone, type, weights) %>% 
-  summarize(death_rate_lower = quantile(death_rate, 0.025),
-            death_rate_upper = quantile(death_rate, 0.975)) 
-
-## perform join 
-cdr_pooled_hz_point_uncertainty_nonprob <- inner_join(cdr_pooled_hz_point_nonprob, cdr_pooled_hz_uncertainty_nonprob, by = c("type", "health_zone", "weights")) %>% 
-  mutate(survey = "quota")
-
-## visualize results 
-cdr_pooled_heath_zones_plot <- cdr_pooled_hz_point_uncertainty_nonprob %>% 
-  filter(weights == "poststrat") %>% 
-#   filter(type != "household") %>% 
-  ggplot(aes(x = health_zone, color = type, shape = type, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
-  geom_pointrange( position = position_dodge(.25), size = 1, fill = "white") +
-  scale_shape_manual(values = c(21, 22, 23, 24)) +
-  scale_color_viridis_d() +  
-  ylim(0, 1.2) + 
-  theme_cowplot() + 
-  theme(legend.position = "bottom", legend.title = element_blank()) + 
-  labs(x = "Zone de Sante",
-       y = "Estimated Average Daily Crude Death Rate",
-       labs = "HH Survey Estimates") 
-```
-
-
-```{r}
-final_results_plot <- cdr_pooled_hz_point_uncertainty_nonprob %>%
-  bind_rows(cdr_pooled_hz_point_uncertainty) %>%
-  mutate(survey = case_when(
-    survey == "hh" ~ "Household",
-    survey == "quota" ~ "Quota"
-  )) %>%
-  filter(health_zone %in% c("Kalemie", "Nyunzu")) %>%
-  filter(weights == "poststrat") %>%
-  # Assuming 'type' needs to be ordered as specified; adjust as necessary
-  mutate(type = factor(type, levels = c("household", "kin", "neighbor", "blended"))) %>%
-  ggplot(aes(x = type, color = survey, shape = survey, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) +
-  geom_pointrange(position = position_dodge(.3), size = 1, fill = "white") +
-  scale_shape_manual(values = c(21, 22, 23, 24)) +
-  ggsci::scale_color_lancet() +
-  ylim(0, 1.2) +
-  theme_cowplot() +
-  theme(legend.position = "bottom", legend.title = element_blank()) +
-  labs(x = "Type of Survey",
-       y = "Estimated Average Daily Crude Death Rate",
-       title = "") +  # Changed 'labs' to 'title'
-  facet_wrap(~health_zone, nrow = 2)
-
-
-
-ggsave(plot = final_results_plot, filename = here("figures/main_comparison_plot.png"), height = 8, width = 6)
-```
-
 
 
 ```{r}
@@ -196,7 +87,7 @@ cdr_pooled_boostrap_nonprob <- networksurvival::compute_cdr_comprehensive(death_
                                                                              weight_col = "weight_ipw",
                                                                              weight_targets = weight_targets_ipw,
                                                                              weight_type = "ipw", 
-                                                                             bootstrap = 100)
+                                                                             bootstrap = 300)
 
 ## zone de sante - Uncertainty Intervals
 cdr_pooled_uncertainty_nonprob <- cdr_pooled_boostrap_nonprob %>% 
@@ -221,7 +112,7 @@ cdr_pooled_point_hh <- networksurvival::compute_cdr_comprehensive(death_df = hh_
 cdr_pooled_boostrap_hh <- networksurvival::compute_cdr_comprehensive(death_df = hh_sample_deaths,
                                                                              survey_df = hh_sample_respondent, 
                                                                           weight_col = "weight_poststrat",
-                                                                             bootstrap = 100)
+                                                                             bootstrap = 300)
 
 
 ## zone de sante - Uncertainty Intervals
@@ -248,61 +139,14 @@ cdr_pooled_heath_zones_plot <- cdr_pooled_point_uncertainty_hh %>%
   scale_shape_manual(values = c(21, 22)) +
   ylim(0, 1.2) + 
   theme_cowplot() + 
+  ggsci::scale_color_lancet() + 
   theme(legend.position = "bottom", legend.title = element_blank()) + 
   labs(x = "Zone de Sante",
        y = "Estimated Average Daily Crude Death Rate",
        labs = "HH Survey Estimates") + 
   geom_hline(yintercept = un_estimate, linetype = "dashed", color = "grey")
-```
 
-
-```{r}
-
-data <- data.frame(
-  type = c("kin", "kin", "neighbor", "neighbor", "blended", "blended", "household", "household"),
-  method = c("poststrat", "unweighted", "poststrat", "unweighted", "poststrat", "unweighted", "poststrat", "unweighted"),
-  weights = c(20182532, 20182532, 20441280, 20441280, NA, NA, 3825014, 3825014),
-  n_deaths = c(1095, 1095, 837, 837, NA, NA, 319, 319),
-  death_rate = c(0.5425484, 0.5425484, 0.4094656, 0.4094656, 0.4761937, 0.4761937, 0.8339839, 0.8339839),
-  death_rate_lower = c(0.5046552, 0.5107496, 0.3725312, 0.3790941, 0.4434625, 0.4477236, 0.7315330, 0.7601070),
-  death_rate_upper = c(0.5796278, 0.5733680, 0.4367333, 0.4359258, 0.5007807, 0.4982473, 0.9111782, 0.9185034),
-  survey = c("hh", "hh", "hh", "hh", "hh", "hh", "hh", "hh")
-)
-
-un_estimate <- 10 * 10/365 
-smart_survey <- 0.58
-
-
-
-
-## visualize results 
-cdr_pooled_point_uncertainty_hh %>% 
-  bind_rows(cdr_pooled_point_uncertainty_nonprob) %>% 
-   mutate(survey = case_when(
-    survey == "hh" ~ "Probability",
-    survey == "quota" ~ "Quota"
-  )) %>%
-  filter(weights == "poststrat") %>% 
-  mutate(type = case_when(
-    type == "blended" ~ "Network",
-    type == "household" ~ "Household",
-    TRUE ~ NA_character_
-  )) %>% 
-  filter(!is.na(type)) %>% 
-#   filter(type != "household") %>% 
-  ggplot(aes(x = type, shape = survey, color = survey, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
-  geom_pointrange( position = position_dodge(.25), size = 1, fill = "white") +
-  scale_shape_manual(values = c(21, 22)) +
-  ylim(0, 1) + 
-  theme_cowplot() + 
-    scale_color_manual(values = cudb) + 
-  theme(legend.position = "bottom", legend.title = element_blank()) + 
-  labs(x = "",
-       y = "Estimated Average Daily Crude Death Rate",
-       labs = "HH Survey Estimates") + 
-  geom_hline(yintercept = un_estimate, linetype = "dashed", color = "grey") + 
-  annotate("text", x = 1.5, y = 0.23, label = "DRC National-Level Estimate (UN)", size = 3, colour = "grey36") 
-  
+ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures", "cdr_pooled_heath_zones_plot.png"), width = 8, height = 5)
 ```
 
 
@@ -322,7 +166,7 @@ auxiliary_estimates <- tibble(
 )
 
 ## visualize results 
-cdr_comparison_external <- cdr_pooled_point_uncertainty_hh %>.% 
+cdr_comparison_external <- cdr_pooled_point_uncertainty_hh %>% 
   bind_rows(cdr_pooled_point_uncertainty_nonprob) %>% 
    mutate(survey = case_when(
     survey == "hh" ~ "Probability",
@@ -360,7 +204,6 @@ ggsave(plot = cdr_comparison_external, filename = here("figures", "cdr_compariso
 
 ```{r}
 # Assuming 'un_estimate' is defined somewhere in your code as the UN estimate value.
-
 cdr_comparison_external <- cdr_pooled_point_uncertainty_hh %>%
   bind_rows(cdr_pooled_point_uncertainty_nonprob) %>%
   mutate(survey = case_when(
@@ -398,6 +241,46 @@ cdr_comparison_external <- cdr_pooled_point_uncertainty_hh %>%
   geom_hline(yintercept = un_estimate, linetype = "dashed", color = "grey") +  # DRC national-level estimate line for both panels
   facet_wrap(~study_category, scales = "free_x", ncol = 2) 
 
+# Assuming 'un_estimate' is defined somewhere in your code as the UN estimate value.
+cdr_comparison_internal <- cdr_pooled_point_uncertainty_hh %>%
+  bind_rows(cdr_pooled_point_uncertainty_nonprob) %>%
+  mutate(survey = case_when(
+    survey == "hh" ~ "Probability",
+    survey == "quota" ~ "Quota"
+  )) %>%
+  filter(weights == "poststrat") %>%
+  mutate(type = case_when(
+    type == "blended" ~ "Network Survival",
+    type == "household" ~ "Household",
+    TRUE ~ NA_character_
+  )) %>%
+  filter(!is.na(type)) %>%
+  bind_rows(auxiliary_estimates) %>%
+  mutate(
+    type = factor(type, levels = c("Network Survival", "Household", "Jarrett et al. (2020)", "Smart Survey 2022")),
+    study_category = ifelse(type %in% c("Network Survival", "Household"), "This Study", "External Studies"),
+    un_label = ifelse(type %in% c("Network Survival", "Household"), "DRC National-Level Estimate (UN)", NA)
+  ) %>%
+  mutate(study_category = factor(study_category, levels = c("This Study", "External Studies"))) %>%
+  mutate(death_rate = ifelse(study_category == "External Studies", -999, death_rate),
+         death_rate_lower = ifelse(study_category == "External Studies", -999, death_rate_lower),
+         death_rate_upper = ifelse(study_category == "External Studies", -999, death_rate_upper)) %>% 
+  ggplot(aes(x = type, shape = survey, color = survey, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) +
+  geom_pointrange(position = position_dodge(width = 0.25), size = 1, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23)) +
+  scale_color_manual(values = cudb) +
+  ylim(0, 1.03) +
+  theme_cowplot() +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 12, colour = "black"),
+    panel.spacing.x = unit(0, "lines")  # Reduced spacing between panels
+  ) +
+  labs(x = "", y = "Crude Death Rate \n (per 10,000 person-days)") +
+  geom_hline(yintercept = un_estimate, linetype = "dashed", color = "grey") +  # DRC national-level estimate line for both panels
+  facet_wrap(~study_category, scales = "free_x", ncol = 2) 
 
 
 # Finally, it is possible to move the annotation inside of the plot if desired.
@@ -405,6 +288,8 @@ cdr_comparison_external <- ggdraw(add_sub(cdr_comparison_external, "DRC National
        y = 16, x = 0.03, hjust = 0, color = "grey36", size = 11))
 
 ggsave(plot = cdr_comparison_external, filename = here("figures", "cdr_comparison_external.png"), width = 8, height = 5)
+
+ggsave(plot = cdr_comparison_internal, filename = here("figures", "cdr_comparison_internal.png"), width = 8, height = 5)
 
 ```
 
@@ -473,7 +358,7 @@ margin_comparison_plot <- margin_df %>%
     variable == "manufactured_material_house" ~ "Wall type",
     variable == "modern_fuel_type" ~ "Fuel Type"
   )) %>% 
-  filter(health_zone != "Nyemba") %>%
+  # filter(health_zone != "Nyemba") %>%
   filter(!variable %in% c("HH 18+", "HH 5-18", "HH U5")) %>%
   mutate(variable = factor(variable, levels = c(
     "Age", "Gender", "HH Size", "Bed", "Fuel Type", "Radio", "Wall type"
@@ -496,7 +381,7 @@ margin_comparison_plot <- margin_df %>%
         legend.box.background = element_rect(colour = "black"), 
         legend.title = element_blank())
 
-ggsave(plot = margin_comparison_plot, filename = here("figures", "margin_comparison_plot.png"), width = 8, height = 8)
+ggsave(plot = margin_comparison_plot, filename = here("figures", "margin_comparison_plot.png"), width = 10, height = 8)
 
 ```
 
