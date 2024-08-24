@@ -137,3 +137,65 @@ ggsave(plot = combined_geo_plot, filename = here("figures", "africa_with_tangany
 ```
 
 
+
+
+```{r}
+# Filter data for the specific province
+tanganyika_aires_data <- aires_data %>% 
+  filter(Province == "Tanganyika" | ZS == "Fizi")
+
+# Create a new variable to identify whether each ZS should be colored or grayed out
+tanganyika_aires_data <- tanganyika_aires_data %>% 
+  mutate(color_group = if_else(ZS %in% c("Kalemie", "Nyemba", "Nyunzu", "Fizi"), as.character(ZS), "Other"))
+
+# Ensure geometries are valid
+tanganyika_aires_data_clean <- tanganyika_aires_data %>%
+  mutate(geometry = st_make_valid(geometry))
+
+# Optionally, you could also simplify the geometry (remove this line if not needed)
+# tanganyika_aires_data_clean <- tanganyika_aires_data_clean %>%
+#   mutate(geometry = st_simplify(geometry, dTolerance = 0.001))
+
+# Now group and summarise
+tanganyika_aires_data_grouped <- tanganyika_aires_data_clean %>%
+  group_by(color_group) %>%
+  summarise(geometry = st_union(geometry), .groups = "drop")
+
+
+# Ensure the geometry is valid and compute the centroids
+tanganyika_aires_data_grouped <- st_make_valid(tanganyika_aires_data_grouped)
+centroids <- st_centroid(tanganyika_aires_data_grouped)
+
+# Create a manual color palette: Specify your chosen colors here
+my_palette <- c("Kalemie" = "#FFDB58",
+                "Nyemba" = "#FFDB58",
+                "Nyunzu" = "#FFDB58",
+                "Fizi" = "darkred", 
+                "Other" = "grey50")
+
+# Coordinates for Kalemie Town
+kalemie_town_x <- 29.2   # Longitude
+kalemie_town_y <-  -5.9  # Latitude
+
+# Create a data frame for Kalemie Town
+kalemie_town_df <- data.frame(lon = kalemie_town_x, lat = kalemie_town_y)
+st_geometry(kalemie_town_df) <- st_sfc(st_point(c(kalemie_town_x, kalemie_town_y)), crs = st_crs(data))
+kalemie_town_df <- st_set_crs(kalemie_town_df, 4326)
+
+# Plotting
+tanganyika_prov_map <- ggplot() + 
+  geom_sf(data = filter(tanganyika_aires_data, color_group != "Other"), aes(fill = color_group), alpha = 0.5, color = "black", linetype = "dotted", size = 0.2) +
+  geom_sf(data = filter(tanganyika_aires_data, color_group == "Other"), aes(fill = color_group), alpha = 0.2, color = "black", linetype = "blank", size = 0.2) +
+  geom_sf_text(data = filter(centroids, color_group != "Other"), aes(label = color_group), check_overlap = TRUE, size = 6 * 1.2) +
+  geom_sf(data = kalemie_town_df, color = "black", shape = 18, size = 6) +  # Add the star
+  geom_sf_text(data = kalemie_town_df, aes(label = "Kalemie Town"), vjust = -.45, hjust = -.09, size = 6) +  # Add the label
+  scale_fill_manual(values = my_palette) +
+  coord_sf(datum = NA) +
+  guides(fill = FALSE) +
+  theme_map() # + labs(title = "Tanganyika Province, focal health zones")
+
+## ggplot 
+ggsave(plot = tanganyika_prov_map, filename = here("figures", "tanganyika_map_with_fizi.png"), width = 6, height = 7)
+```
+
+

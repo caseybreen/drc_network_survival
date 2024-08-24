@@ -150,6 +150,9 @@ ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures", "cdr_poole
 ```
 
 
+
+
+
 ```{r}
 household_wrong <- 32.68 * 10/365
 household_adjusted <- 9.2 * 10/365
@@ -158,51 +161,13 @@ household_adjusted_upper <- 12.9 * 10/365
 
 
 auxiliary_estimates <- tibble(
-  survey = c("Probability", "Surveillance", "Probability"),
+  survey = c("Probability", "Gold Standard", "Probability"),
   type = c("Jarrett et al. (2020)", "Jarrett et al. (2020)", "Smart Survey 2022"), 
   death_rate = c(household_wrong, household_adjusted, 0.58),
   death_rate_upper = c(0.7711899, household_adjusted_lower, 0.34), 
   death_rate_lower = c(1.019499, household_adjusted_upper, 0.98)
 )
 
-## visualize results 
-cdr_comparison_external <- cdr_pooled_point_uncertainty_hh %>% 
-  bind_rows(cdr_pooled_point_uncertainty_nonprob) %>% 
-   mutate(survey = case_when(
-    survey == "hh" ~ "Probability",
-    survey == "quota" ~ "Quota"
-  )) %>%
-  filter(weights == "poststrat") %>% 
-  mutate(type = case_when(
-    type == "blended" ~ "Network Survival",
-    type == "household" ~ "Household",
-    TRUE ~ NA_character_
-  )) %>% 
-  filter(!is.na(type)) %>% 
-  bind_rows(auxiliary_estimates) %>%
-  mutate(type = factor(type, levels = c("Network Survival", "Household", "Jarrett et al. (2020)", "Smart Survey 2022"))) %>% 
-#   filter(type != "household") %>% 
-  ggplot(aes(x = type, shape = survey, color = survey, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
-  geom_pointrange( position = position_dodge(.25), size = 1, fill = "white") +
-  scale_shape_manual(values = c(21, 22, 23)) +
-  scale_color_manual(values = cudb) + 
-  ylim(0, 1.03) + 
-  theme_cowplot() + 
-  theme(legend.position = "bottom", legend.title = element_blank()) + 
-  labs(x = "",
-       y = "Crude Death Rate \n (per 10,000 person-days)",
-       labs = "HH Survey Estimates") + 
-  geom_hline(yintercept = un_estimate, linetype = "dashed", color = "grey") + 
-  annotate("text", x = 1.5, y = 0.23, label = "DRC National-Level Estimate (UN)", size = 3, colour = "grey36") 
-
-
-ggsave(plot = cdr_comparison_external, filename = here("figures", "cdr_comparison_external.png"), width = 8, height = 5)
-
-```
-
-
-
-```{r}
 # Assuming 'un_estimate' is defined somewhere in your code as the UN estimate value.
 cdr_comparison_external <- cdr_pooled_point_uncertainty_hh %>%
   bind_rows(cdr_pooled_point_uncertainty_nonprob) %>%
@@ -220,14 +185,20 @@ cdr_comparison_external <- cdr_pooled_point_uncertainty_hh %>%
   bind_rows(auxiliary_estimates) %>%
   mutate(
     type = factor(type, levels = c("Network Survival", "Household", "Jarrett et al. (2020)", "Smart Survey 2022")),
-    study_category = ifelse(type %in% c("Network Survival", "Household"), "This Study", "External Studies"),
+    study_category = ifelse(type %in% c("Network Survival", "Household"), "This Study", "Other Studies"),
     un_label = ifelse(type %in% c("Network Survival", "Household"), "DRC National-Level Estimate (UN)", NA)
   ) %>%
-  mutate(study_category = factor(study_category, levels = c("This Study", "External Studies"))) %>%
+  mutate(study_category = factor(study_category, levels = c("This Study", "Other Studies"))) %>%
   ggplot(aes(x = type, shape = survey, color = survey, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) +
   geom_pointrange(position = position_dodge(width = 0.25), size = 1, fill = "white") +
-  scale_shape_manual(values = c(21, 22, 23)) +
-  scale_color_manual(values = cudb) +
+  scale_shape_manual(values = c("Probability" = 21,   # Circle for Probability
+                                "Quota" = 23,        # Diamond for Quota
+                                "Gold Standard" = 22  # Square for gold standard 
+  )) +
+  scale_color_manual(values = c("Probability" = "#0072B2",  # Blue for Probability
+                                "Quota" = "#009E73",        # Green for Quota
+                                "Gold Standard" = "#E69F00"  # Orange for gold standard
+  )) +
   ylim(0, 1.03) +
   theme_cowplot() +
   theme(
@@ -268,7 +239,10 @@ cdr_comparison_internal <- cdr_pooled_point_uncertainty_hh %>%
   ggplot(aes(x = type, shape = survey, color = survey, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) +
   geom_pointrange(position = position_dodge(width = 0.25), size = 1, fill = "white") +
   scale_shape_manual(values = c(21, 22, 23)) +
-  scale_color_manual(values = cudb) +
+  scale_color_manual(values = c("Probability" = "#0072B2",  # Blue for Probability
+                                "Quota" = "#009E73",        # Green for Quota
+                                "Another Quota" = "#E69F00"  # Orange for a third category, if applicable
+                                )) +
   ylim(0, 1.03) +
   theme_cowplot() +
   theme(
@@ -288,16 +262,9 @@ cdr_comparison_external <- ggdraw(add_sub(cdr_comparison_external, "DRC National
        y = 16, x = 0.03, hjust = 0, color = "grey36", size = 11))
 
 ggsave(plot = cdr_comparison_external, filename = here("figures", "cdr_comparison_external.png"), width = 8, height = 5)
-
-ggsave(plot = cdr_comparison_internal, filename = here("figures", "cdr_comparison_internal.png"), width = 8, height = 5)
-
 ```
 
-
-
-
 ## weighting surveys 
-
 
 ```{r}
 margin <- weight_targets_ipw %>% 
@@ -345,6 +312,7 @@ margin_df <- margin_df %>%
 
 ```{r}
 margin_comparison_plot <- margin_df %>%  
+  filter(!is.na(level)) %>% 
   mutate(variable = case_when( 
     variable == "age_18plus_count" ~ "HH 18+", 
     variable == "age_5_18_count"   ~ "HH 5-18", 
