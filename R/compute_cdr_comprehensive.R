@@ -22,7 +22,9 @@
 
 compute_cdr_comprehensive <- function(death_df, survey_df, weight_col, bootstrap = NA, monthly = FALSE,
                                       subpopulation = NULL, HH = F, blended_weight_kin = 0.5014031,
-                                      weight_targets = weighting_targets, weight_type = "poststrat") {
+                                      weight_targets = weighting_targets,
+                                      weight_type = "poststrat",
+                                      prob_survey_cutoff_flag = NA) {
 
   ## create list to store results
   results_list <- list()
@@ -40,11 +42,11 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col, bootstrap
 
 
     # Kin result
-    kin_result <- estimate_kin_func(death_df, survey_df, weight_col, subpop = subpopulation) %>%
+    kin_result <- estimate_kin_func(death_df, survey_df, weight_col, subpop = subpopulation, prob_survey_cutoff = prob_survey_cutoff_flag) %>%
       mutate(type = "kin")
 
     # Neighbor result
-    neighbor_result <- estimate_neighbor_func(death_df, survey_df, weight_col, subpop = subpopulation) %>%
+    neighbor_result <- estimate_neighbor_func(death_df, survey_df, weight_col, subpop = subpopulation, prob_survey_cutoff = prob_survey_cutoff_flag) %>%
       mutate(type = "neighbor")
 
     # Blended result
@@ -57,7 +59,7 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col, bootstrap
       dplyr::select(-n_deaths, -n_deaths_unweighted, -exposure, -exposure_unweighted)
 
     # HH estimate
-    household_result <- estimate_hh_func(survey_df = survey_df, death_df = death_df, weight_col = weight_col, subpop = subpopulation) %>%
+    household_result <- estimate_hh_func(survey_df = survey_df, death_df = death_df, weight_col = weight_col, subpop = subpopulation, prob_survey_cutoff = prob_survey_cutoff_flag) %>%
       mutate(type = "household")
 
     # Store results
@@ -99,7 +101,6 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col, bootstrap
           mutate(weight_col = weight_raking)  # Assuming 'weight_raking' is your column name for raking weights
       }
 
-
       ## weights
       weights <- boot_survey_df %>%
         dplyr::select(uuid_ki, weight_col) %>%
@@ -114,17 +115,18 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col, bootstrap
 
       # Kin estimate
       estimate_kin_func <- if (monthly) calculate_cdr_kin_monthly else calculate_cdr_kin
-      kin_result <- estimate_kin_func(survey_df = boot_survey_df, death_df = boot_death_df_final, weight_col = "weight_col", subpop = subpopulation) %>%
+      kin_result <- estimate_kin_func(survey_df = boot_survey_df, death_df = boot_death_df_final, weight_col = "weight_col", subpop = subpopulation, prob_survey_cutoff = prob_survey_cutoff_flag) %>%
         mutate(bootstrap_iter = i, type = "kin")
 
       # Neighbor estimate
       estimate_neighbor_func <- if (monthly) calculate_cdr_neighbor_monthly else calculate_cdr_neighbor
-      neighbor_result <- estimate_neighbor_func(survey_df = boot_survey_df, death_df = boot_death_df_final, weight_col = "weight_col", subpop = subpopulation) %>%
+      neighbor_result <- estimate_neighbor_func(survey_df = boot_survey_df, death_df = boot_death_df_final, weight_col = "weight_col", subpop = subpopulation, prob_survey_cutoff = prob_survey_cutoff_flag) %>%
         mutate(bootstrap_iter = i, type = "neighbor")
 
       # HH estimate
       estimate_hh_func <- if (monthly) calculate_cdr_household_monthly else calculate_cdr_household
-      household_result <- estimate_hh_func(survey_df = boot_survey_df, death_df = boot_death_df_final, weight_col = "weight_col", subpop = subpopulation) %>%
+      household_result <- estimate_hh_func(survey_df = boot_survey_df, death_df = boot_death_df_final, weight_col = "weight_col", subpop = subpopulation,
+                                           prob_survey_cutoff = prob_survey_cutoff_flag) %>%
         mutate(bootstrap_iter = i, type = "household")
 
 

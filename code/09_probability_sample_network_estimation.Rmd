@@ -15,15 +15,14 @@ hh_sample_neighbors <- read_csv(here("data", "data_clean", "hh_sample_neighbors.
 hh_sample_respondent <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv")) 
 
 ## read in survey df
-## read in survey df
-quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv")) # %>% filter(health_zone != "Nyunzu")
+quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv")) 
 quota_sample_survey <- quota_sample_survey %>%
-  filter(!(start_month == as_date("2023-06-01") & health_zone == "Nyunzu"))
+  filter(enum != "team11")
 
 ## read in death df 
-quota_sample_deaths <- read_csv(here("data", "data_clean", "quota_sample_deaths.csv")) # %>%  filter(health_zone != "Nyunzu")
-quota_sample_deaths <- quota_sample_deaths %>% mutate(report_month = floor_date(death_date_dc, "month")) %>% filter(!(report_month == as_date("2023-06-01") & health_zone == "Nyunzu"))
-
+quota_sample_deaths <- read_csv(here("data", "data_clean", "quota_sample_deaths.csv")) 
+quota_sample_deaths <- quota_sample_deaths %>% mutate(report_month = floor_date(death_date_dc, "month")) %>% 
+  filter(death_enum != "team11")
 
 ## read in weighting targets 
 weighting_targets <- read_csv(here("data", "weighting", "weighting_targets.csv"))
@@ -76,7 +75,7 @@ hh_sample_deaths <- hh_sample_deaths %>%
 
 
 ```{r}
-## estimate point estimates 
+## Estimate point estimates 
 cdr_pooled_point_nonprob <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
                                                                           survey_df = quota_sample_survey,
                                                                           weight_col = "weight_ipw",
@@ -87,9 +86,9 @@ cdr_pooled_boostrap_nonprob <- networksurvival::compute_cdr_comprehensive(death_
                                                                              weight_col = "weight_ipw",
                                                                              weight_targets = weight_targets_ipw,
                                                                              weight_type = "ipw", 
-                                                                             bootstrap = 300)
+                                                                             bootstrap = n_bootstrap_samples)
 
-## zone de sante - Uncertainty Intervals
+## Zone de sante - Uncertainty Intervals
 cdr_pooled_uncertainty_nonprob <- cdr_pooled_boostrap_nonprob %>% 
   group_by(type, weights) %>% 
   summarize(death_rate_lower = quantile(death_rate, 0.025),
@@ -103,19 +102,21 @@ cdr_pooled_point_uncertainty_nonprob <- inner_join(cdr_pooled_point_nonprob, cdr
 
 
 ```{r}
-## estimate point estimates 
+## £stimate point estimates 
 cdr_pooled_point_hh <- networksurvival::compute_cdr_comprehensive(death_df = hh_sample_deaths,
                                                                           survey_df = hh_sample_respondent,
                                                                           weight_col = "weight_poststrat",
-                                                                          bootstrap = NA)
+                                                                          bootstrap = NA, prob_survey_cutoff_flag = T)
+
 
 cdr_pooled_boostrap_hh <- networksurvival::compute_cdr_comprehensive(death_df = hh_sample_deaths,
-                                                                             survey_df = hh_sample_respondent, 
-                                                                          weight_col = "weight_poststrat",
-                                                                             bootstrap = 300)
+                                                                     survey_df = hh_sample_respondent, 
+                                                                     weight_col = "weight_poststrat",
+                                                                     bootstrap = n_bootstrap_samples,
+                                                                    prob_survey_cutoff_flag = T)
 
 
-## zone de sante - Uncertainty Intervals
+## Uncertainty Intervals
 cdr_pooled_uncertainty_hh <- cdr_pooled_boostrap_hh %>% 
   group_by(type, weights) %>% 
   summarize(death_rate_lower = quantile(death_rate, 0.025),
@@ -130,23 +131,21 @@ un_estimate <- 10 * 10/365
 smart_survey <- 0.58
 
 ## visualize results 
-cdr_pooled_heath_zones_plot <- cdr_pooled_point_uncertainty_hh %>% 
+cdr_network_comparisons <- cdr_pooled_point_uncertainty_hh %>% 
   bind_rows(cdr_pooled_point_uncertainty_nonprob) %>% 
   filter(weights == "poststrat") %>% 
 #   filter(type != "household") %>% 
   ggplot(aes(x = type, shape = survey, color = survey, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
   geom_pointrange( position = position_dodge(.25), size = 1, fill = "white") +
   scale_shape_manual(values = c(21, 22)) +
-  ylim(0, 1.2) + 
+  ylim(0, 1) + 
   theme_cowplot() + 
   ggsci::scale_color_lancet() + 
   theme(legend.position = "bottom", legend.title = element_blank()) + 
-  labs(x = "Zone de Sante",
-       y = "Estimated Average Daily Crude Death Rate",
-       labs = "HH Survey Estimates") + 
+    labs(x = "", y = "Crude Death Rate \n (per 10,000 person-days)") +
   geom_hline(yintercept = un_estimate, linetype = "dashed", color = "grey")
 
-ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures", "cdr_pooled_heath_zones_plot.png"), width = 8, height = 5)
+ggsave(plot = cdr_network_comparisons, filename = here("figures", "cdr_quota_prob_network_comparisons.png"), width = 8, height = 5)
 ```
 
 
@@ -350,7 +349,6 @@ margin_comparison_plot <- margin_df %>%
         legend.title = element_blank())
 
 ggsave(plot = margin_comparison_plot, filename = here("figures", "margin_comparison_plot.png"), width = 10, height = 8)
-
 ```
 
 

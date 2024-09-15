@@ -7,7 +7,7 @@
 #'
 #' @export
 
-calculate_cdr_kin <- function(death_df, survey_df, weight_col = "weights", subpop = NULL) {
+calculate_cdr_kin <- function(death_df, survey_df, weight_col = "weights", subpop = NULL, prob_survey_cutoff = prob_survey_cutoff_flag) {
   ## Validate weight column
   if (!(weight_col %in% names(survey_df))) {
     stop("The specified weight column is not in the survey_df.")
@@ -22,10 +22,11 @@ calculate_cdr_kin <- function(death_df, survey_df, weight_col = "weights", subpo
     }
   }
 
+  if (!is.na(prob_survey_cutoff)) {
   ## Calculate exposure
   exposure_kin <- survey_df %>%
-    mutate(exposure = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_kin * .data[[weight_col]]) %>%
-    mutate(exposure_unweighted = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_kin) %>%
+    mutate(exposure = lubridate::interval(as_date("2023-01-01"), as_date("2023-06-29")) %/% days(1) * num_total_kin * .data[[weight_col]]) %>%
+    mutate(exposure_unweighted = lubridate::interval(as_date("2023-01-01"), as_date("2023-06-29")) %/% days(1) * num_total_kin) %>%
     summarize(
       exposure = sum(exposure, na.rm = TRUE),
       exposure_unweighted = sum(exposure_unweighted, na.rm = TRUE)
@@ -33,8 +34,25 @@ calculate_cdr_kin <- function(death_df, survey_df, weight_col = "weights", subpo
 
   ## Calculate deaths
   death_count <- death_df %>%
+    filter(final_date_death <= as_date("2023-06-29")) %>%
     filter(`death_relationship/family` == 1) %>%
     summarize(n_deaths = sum(.data[[weight_col]]), n_deaths_unweighted = n())
+  } else {
+
+    ## Calculate exposure
+    exposure_kin <- survey_df %>%
+      mutate(exposure = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_kin * .data[[weight_col]]) %>%
+      mutate(exposure_unweighted = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_kin) %>%
+      summarize(
+        exposure = sum(exposure, na.rm = TRUE),
+        exposure_unweighted = sum(exposure_unweighted, na.rm = TRUE)
+      )
+
+    ## Calculate deaths
+    death_count <- death_df %>%
+      filter(`death_relationship/family` == 1) %>%
+      summarize(n_deaths = sum(.data[[weight_col]]), n_deaths_unweighted = n())
+  }
 
   # Calculate death rates
   if (!is.null(subpop)) {

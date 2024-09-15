@@ -15,7 +15,7 @@
 #'
 #' @export
 
-calculate_cdr_neighbor <- function(death_df, survey_df, weight_col = "weights", subpop = NULL) {
+calculate_cdr_neighbor <- function(death_df, survey_df, weight_col = "weights", subpop = NULL, prob_survey_cutoff = prob_survey_cutoff_flag) {
   # Validate weight column
   if (!(weight_col %in% names(survey_df))) {
     stop("The specified weight column is not in the survey_df.")
@@ -31,21 +31,43 @@ calculate_cdr_neighbor <- function(death_df, survey_df, weight_col = "weights", 
     }
   }
 
-  # Calculate exposure for neighbors
-  exposure_hh_neighbors <- survey_df %>%
-    mutate(
-      exposure = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_hh_neighbour * .data[[weight_col]], # * !!rlang::sym(weight_col)
-      exposure_unweighted = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_hh_neighbour
-    ) %>%
-    summarize(
-      exposure = sum(exposure, na.rm = TRUE),
-      exposure_unweighted = sum(exposure_unweighted, na.rm = TRUE)
-    )
+  if (!is.na(prob_survey_cutoff)) {
 
-  # Calculate death counts
-  death_count <- death_df %>%
-    filter(`death_relationship/neighbour` == 1 | `death_relationship/household` == 1) %>% #
-    summarize(n_deaths = sum(.data[[weight_col]]), n_deaths_unweighted = n())
+    # Calculate exposure for neighbors
+    exposure_hh_neighbors <- survey_df %>%
+      mutate(
+        exposure = lubridate::interval(as_date("2023-01-01"), as_date("2023-06-29")) %/% days(1) * num_total_hh_neighbour * .data[[weight_col]], # * !!rlang::sym(weight_col)
+        exposure_unweighted = lubridate::interval(as_date("2023-01-01"), as_date("2023-06-29")) %/% days(1) * num_total_hh_neighbour
+      ) %>%
+      summarize(
+        exposure = sum(exposure, na.rm = TRUE),
+        exposure_unweighted = sum(exposure_unweighted, na.rm = TRUE)
+      )
+
+    # Calculate death counts
+    death_count <- death_df %>%
+      filter(final_date_death <= as_date("2023-06-29")) %>%
+      filter(`death_relationship/neighbour` == 1 | `death_relationship/household` == 1) %>% #
+      summarize(n_deaths = sum(.data[[weight_col]]), n_deaths_unweighted = n())
+
+  } else {
+
+    # Calculate exposure for neighbors
+    exposure_hh_neighbors <- survey_df %>%
+      mutate(
+        exposure = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_hh_neighbour * .data[[weight_col]], # * !!rlang::sym(weight_col)
+        exposure_unweighted = lubridate::interval(as_date("2023-01-01"), as_date(start)) %/% days(1) * num_total_hh_neighbour
+      ) %>%
+      summarize(
+        exposure = sum(exposure, na.rm = TRUE),
+        exposure_unweighted = sum(exposure_unweighted, na.rm = TRUE)
+      )
+
+    # Calculate death counts
+    death_count <- death_df %>%
+      filter(`death_relationship/neighbour` == 1 | `death_relationship/household` == 1) %>% #
+      summarize(n_deaths = sum(.data[[weight_col]]), n_deaths_unweighted = n())
+  }
 
 
   # Combine results

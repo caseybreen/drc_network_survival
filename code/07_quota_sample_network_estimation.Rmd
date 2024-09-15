@@ -5,7 +5,7 @@ author: Casey Breen
 
 ## Summary 
 
-In this notebook, I estimate crude daily death rates using two datasets: a respondent-level dataset and a death-level dataset. I will calculate the following sets of estimates: 
+In this notebook, I estimate CDRs for the quota sample using two datasets: a respondent-level dataset and a death-level dataset. I will calculate the following sets of estimates: 
 
 * CDR pooled (Nyemba and Kalemie only, excluding Nyunzu)
 * CDR disaggregated by health zone (Nyemba and Kalemie only, excluding Nyunzu)
@@ -22,15 +22,17 @@ library(here)
 source(here("code", "helpers.R"))
 
 ## read in survey df
-quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv")) # %>% filter(health_zone != "Nyunzu")
+quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv"))  
 
+## quota sample survey 
 quota_sample_survey <- quota_sample_survey %>%
-  filter(!(start_month == as_date("2023-06-01") & health_zone == "Nyunzu"))
+  filter(enum != "team11")
 
 ## read in death df 
-quota_sample_deaths <- read_csv(here("data", "data_clean", "quota_sample_deaths.csv")) # %>%  filter(health_zone != "Nyunzu")
+quota_sample_deaths <- read_csv(here("data", "data_clean", "quota_sample_deaths.csv"))
 
-quota_sample_deaths <- quota_sample_deaths %>% mutate(report_month = floor_date(death_date_dc, "month")) %>% filter(!(report_month == as_date("2023-06-01") & health_zone == "Nyunzu"))
+quota_sample_deaths <- quota_sample_deaths %>% mutate(report_month = floor_date(death_date_dc, "month")) %>%
+  filter(death_enum != "team11")
 
 ## read in weighting targets 
 weighting_targets_poststrat <- read_csv(here("data", "weighting", "weighting_targets.csv")) 
@@ -56,11 +58,10 @@ cdr_pooled_point_poststrat <- networksurvival::compute_cdr_comprehensive(death_d
                                                                   survey_df = quota_sample_survey,
                                                                   weight_col = "weight_poststrat")
 
-
 ## calculate cdr poststratification  
 cdr_pooled_bootstrap_poststrat <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
                                                                    survey_df = quota_sample_survey,
-                                                                   bootstrap = 100,
+                                                                   bootstrap = n_bootstrap_samples,
                                                                    weight_col = "weight_poststrat",
                                                                    weight_type = "poststrat",
                                                                    weight_targets = weighting_targets_poststrat)
@@ -74,7 +75,7 @@ cdr_pooled_point_ipw <- networksurvival::compute_cdr_comprehensive(death_df = qu
 ## calculate cdr ipw  
 cdr_pooled_bootstrap_ipw <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,       
                                                                    survey_df = quota_sample_survey, 
-                                                                   bootstrap = 100,
+                                                                   bootstrap = n_bootstrap_samples,
                                                                    weight_col = "weight_ipw",
                                                                    weight_type = "ipw",
                                                                    weight_targets = weight_targets_ipw)
@@ -102,9 +103,9 @@ cdr_pooled_point_uncertainty_poststrat <- inner_join(cdr_pooled_point_poststrat,
 # Create visualizations 
 cdr_pooled_plot <- cdr_pooled_point_uncertainty_ipw %>% 
   bind_rows(cdr_pooled_point_uncertainty_poststrat) %>%
-  filter(type != "household") %>% 
+  # filter(type != "household") %>% 
   mutate(
-    type = factor(type, levels = c("kin", "neighbor", "blended")),
+    type = factor(type, levels = c("kin", "neighbor", "blended", "household")),
     weights = factor(case_when(
       weights == "poststrat" ~ "Poststratification",
       weights == "unweighted" ~ "Unweighted",
@@ -118,8 +119,10 @@ cdr_pooled_plot <- cdr_pooled_point_uncertainty_ipw %>%
   scale_color_manual(values = cud) + 
   ylim(0, 1) + 
   theme_half_open(12) + 
-  theme(legend.position = "bottom", legend.title = element_blank()) + 
-  labs(x = "Network Tie", y = "Crude Death Rate \n (per 10,000 person days)")
+  theme(legend.position = "bottom", legend.title = element_blank(),
+        panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+        panel.grid.major.y = element_line(color = "grey90")) +
+labs(x = "Network Tie", y = "Crude Death Rate \n (per 10,000 person days)")
 
 
 # Create visualizations 
@@ -142,7 +145,9 @@ cdr_pooled_plot_unweighted <- cdr_pooled_point_uncertainty_ipw %>%
   scale_color_manual(values = cud) + 
   ylim(0, 1) + 
   theme_half_open(12) + 
-  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  theme(legend.position = "bottom", legend.title = element_blank(),
+        panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+        panel.grid.major.y = element_line(color = "grey99")) +
   labs(x = "Network Tie", y = "Crude Death Rate \n (per 10,000 person days)")
 
 
@@ -150,7 +155,7 @@ cdr_pooled_plot_unweighted <- cdr_pooled_point_uncertainty_ipw %>%
 cdr_pooled_plot_poststrat <- cdr_pooled_point_uncertainty_ipw %>% 
   bind_rows(cdr_pooled_point_uncertainty_poststrat) %>%
   mutate(death_rate = ifelse(weights %in% c("unweighted", "poststrat"), death_rate, -999)) %>% 
-  filter(type != "household") %>% 
+#  filter(type != "household") %>% 
   mutate(
     type = factor(type, levels = c("kin", "neighbor", "blended")),
     weights = factor(case_when(
@@ -166,7 +171,9 @@ cdr_pooled_plot_poststrat <- cdr_pooled_point_uncertainty_ipw %>%
   scale_color_manual(values = cud) + 
   ylim(0, 1) + 
   theme_half_open(12) + 
-  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  theme(legend.position = "bottom", legend.title = element_blank(),
+        panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+        panel.grid.major.y = element_line(color = "grey99")) +
   labs(x = "Network Tie", y = "Crude Death Rate \n (per 10,000 person days)")
 
 
@@ -179,7 +186,7 @@ ggsave(plot = cdr_pooled_plot_poststrat, filename = here("figures", "cdr_pooled_
 
 
 
-## CDR disaggregated by health zone (Nyemba and Kalemie only, excluding Nyunzu)
+## CDR disaggregated by health zone
 
 ```{r}
 ## estimate point estimates 
@@ -195,9 +202,9 @@ cdr_pooled_hz_boostrap <- networksurvival::compute_cdr_comprehensive(death_df = 
                                                                      subpopulation = "health_zone", 
                                                                      weight_targets = weight_targets_ipw,
                                                                      weight_type = "ipw",
-                                                                     bootstrap = 100)
+                                                                     bootstrap = n_bootstrap_samples)
 
-## zone de sante - Uncertainty Intervals
+## Health zone - Uncertainty Intervals
 cdr_pooled_hz_uncertainty <- cdr_pooled_hz_boostrap %>% 
   group_by(health_zone, type, weights) %>% 
   summarize(death_rate_lower = quantile(death_rate, 0.025),
@@ -208,18 +215,23 @@ cdr_pooled_hz_point_uncertainty <- inner_join(cdr_pooled_hz_point, cdr_pooled_hz
 
 ## visualize results 
 cdr_pooled_heath_zones_plot <- cdr_pooled_hz_point_uncertainty %>% 
-  filter(weights == "poststrat") %>% 
-  filter(type != "household") %>% 
+ # filter(weights != "poststrat") %>% 
+ # filter(type != "household") %>% 
+  mutate(weights_full = case_when(
+    weights == "poststrat" ~ "IPW Weights",
+    weights == "unweighted" ~"Unweighted"
+  )) %>% 
   ggplot(aes(x = health_zone, color = type, shape = type, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
-  geom_pointrange( position = position_dodge(.25), size = 1, fill = "white") +
-  scale_shape_manual(values = c(21, 22, 23)) +
+  geom_pointrange( position = position_dodge(.5), size = 1, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23, 24)) +
   scale_color_viridis_d() +  
-  ylim(0, 1) + 
+  ylim(0, 2) + 
   theme_cowplot() + 
   theme(legend.position = "bottom", legend.title = element_blank()) + 
-  labs(x = "Health Zone", y = "Crude Death Rate \n (per 10,000 person days)")
+  labs(x = "Health Zone", y = "Crude Death Rate \n (per 10,000 person days)") + 
+  facet_wrap(~weights_full)
 
-ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures", "cdr_pooled_heath_zones_plot.png"), width = 7, height = 5)
+ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures", "cdr_pooled_heath_zones_plot.png"), width = 9, height = 4)
 ```
 
 
@@ -232,7 +244,6 @@ cdr_pooled_hz_point <- networksurvival::compute_cdr_comprehensive(death_df = quo
                                                                   subpopulation = "health_zone",
                                                                   bootstrap = NA)
 ```
-
 
 ## CDR disaggregated by month
 
@@ -250,7 +261,7 @@ cdr_monthly_bootstrap <- networksurvival::compute_cdr_comprehensive(death_df = q
                                                                     weight_col = "weight_ipw",
                                                                     weight_targets = weight_targets_ipw,
                                                                     weight_type = "ipw",
-                                                                    bootstrap = 300,
+                                                                    bootstrap = n_bootstrap_samples,
                                                                     monthly = T)
 
 ## zone de sante 
@@ -277,57 +288,4 @@ cdr_monthly_plot <- cdr_monthly_point_uncertainty %>%
   labs(x = "Month of Death", y = "Crude Death Rate")
 
 ggsave(plot = cdr_monthly_plot, filename = here("figures", "cdr_monthly_plot.png"), width = 6, height = 4)
-```
-
-
-
-
-
-
-## CDR disaggregated by month and health zone (Nyemba and Kalemie only, excluding Nyunzu)
-
-```{r}
-## estimate point estimates 
-cdr_monthly_hz_point <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
-                                                                   survey_df = quota_sample_survey, 
-                                                                   weight_col = "weight_ipw",
-                                                                   subpopulation = "health_zone",
-                                                                   bootstrap = NA,
-                                                                   monthly = T)
-
-cdr_monthly_hz_bootstrap <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
-                                                                       survey_df = quota_sample_survey, 
-                                                                       weight_col = "weight_ipw",
-                                                                       weight_type = "ipw", 
-                                                                       weight_targets = weight_targets_ipw,
-                                                                       subpopulation = "health_zone", 
-                                                                       bootstrap = 100, 
-                                                                       monthly = T)
-
-## health_zone
-cdr_monthly_hz_uncertainty <- cdr_monthly_hz_bootstrap %>% 
-  group_by(month, health_zone, type) %>% 
-  summarize(death_rate_lower = quantile(death_rate, 0.025, na.rm = T),
-            death_rate_upper = quantile(death_rate, 0.975, na.rm = T))
-
-## overall estimates 
-cdr_monthly_hz_point_uncertainty <- inner_join(cdr_monthly_hz_uncertainty, cdr_monthly_hz_point, by = c("type", "health_zone", "month"))
-
-## results monthly df 
-cdr_monthly_hr_plot <- cdr_monthly_hz_point_uncertainty %>% 
- filter(month != as_date("2023-06-01")) %>% 
-  filter(weights == "poststrat") %>% 
-  filter(health_zone != "Nyemba") %>% 
-  ggplot(aes(x = month, color = type, shape = type, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
-  geom_pointrange( position = position_dodge(5), size = .75, fill = "white") +
-  geom_line(linetype = "dashed", alpha = 0.3) + 
-  scale_shape_manual(values = c(21, 22, 23)) +
-  scale_color_viridis_d() + 
-  theme_cowplot() + 
-  ylim(0, 2) + 
-  theme(legend.position = "bottom", legend.title = element_blank()) + 
-  labs(x = "Month of Death", y = "Estimate Average Daily Crude Death Rate") + 
-  facet_wrap(~health_zone, ncol = 1)
-
-ggsave(plot = cdr_monthly_hr_plot, filename = here("figures", "cdr_monthly_hz_plot.png"), width = 6, height = 8)
 ```

@@ -47,8 +47,8 @@ generate_ipw_weights <- function(weighting_targets_micro, survey_df) {
       mutate(selection_prob = predict(selection_model, newdata = ., type = "response"),
              ipw = 1 / selection_prob) %>%
       mutate(
-             weight_ipw = ipw / mean(ipw, na.rm = TRUE),
-             weight_ipw = ifelse(weight_ipw > 5, 5, weight_ipw)) %>%
+             weight_ipw = ipw / mean(ipw, na.rm = TRUE)) %>%
+      mutate(weight_ipw = ifelse(weight_ipw > 5, 5, weight_ipw)) %>%
       mutate(weight_ipw = weight_ipw / mean(weight_ipw, na.rm = TRUE)) %>% ## normalize after trimming extreme weights
       select(health_zone, weight_ipw, uuid_ki)
 

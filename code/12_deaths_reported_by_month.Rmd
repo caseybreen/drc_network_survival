@@ -1,7 +1,6 @@
 ---
-title: "scratch"
-format: html
-editor: visual
+title: "Deaths reported by month"
+author: Casey Breen
 ---
 
 ## Quarto
@@ -15,8 +14,8 @@ library(here)
 library(cowplot)
 
 ## read in data
-survey_df <- read_csv(here("data/clean_data/casey_files/weight_survey.csv"))
-death_df <- read_csv(here("data/clean_data/casey_files/deaths_weighted.csv")) %>%
+survey_df <- read_csv(here("data/data_clean/quota_sample_survey.csv"))
+death_df <- read_csv(here("data/data_clean/quota_sample_deaths.csv")) %>%
   mutate(uuid_ki = uuid_ki4) %>%
   mutate(zone_de_sante_name = case_when(
     death_zs == 746101 ~ "Kalemie",
@@ -40,8 +39,7 @@ death_df <- death_df %>%
 agg_data <- death_df %>%
   filter(!is.na(death_period) & month(death_date_dc) != 2) %>%
   group_by(month = floor_date(death_date_dc, "month"), death_period) %>%
-  summarize(death_count = n()) %>%
-  filter(death_period %in% c("Last 1 month", "1-2 months", "2-3 months"))
+  summarize(death_count = n()) 
 
 # Generate the plot
 ggplot(agg_data, aes(x = month, y = death_count, color = death_period)) +
@@ -124,3 +122,56 @@ death_df %>%
   filter(!is.na(death_period) & month(death_date_dc) != 2) %>%
   group_by(month = floor_date(death_date_dc, "month"), death_period, tie)
 ```
+
+
+
+## Month of death X month of interview 
+
+```{r}
+## Tabulate deaths by month of interview and month of death 
+report_plot_df <- death_df %>% 
+ # filter(`death_relationship/neighbour` == 1) %>%  ## restrict to sub-population 
+  mutate(death_month = lubridate::floor_date(x = as_date(date_join_final_death), unit = "month")) %>% 
+  mutate(report_month = lubridate::floor_date(x = as_date(death_date_dc), unit = "month")) %>% 
+  filter(report_month != as_date("2023-02-01")) %>% ## filter out February interviews  
+  filter(!is.na(death_month)) 
+
+## Plot distribution of deaths by month of interview 
+report_plot <- report_plot_df %>% 
+  ggplot(., aes(x = as.factor(death_month))) + 
+    geom_bar(position=position_dodge2(.9), fill = "grey", color = "black") +
+    geom_text(stat='count', aes(label=after_stat(count)), vjust = -.5) + 
+      facet_wrap(~report_month, nrow = 4) + 
+      ylim(0, 80) + 
+      cowplot::theme_cowplot() + 
+      labs(x = "Month of Death",
+           title = "Reported Number of Deaths (Panels = Month of Interview)") 
+
+report_plot
+```
+## Month of death X month of interview -- by Zone de Sante 
+
+```{r}
+# Plot distribution of deaths by month of interview
+report_plot_zs <- report_plot_df %>% 
+  mutate(
+    death_zs_full = case_when(
+      death_zs == 746101 ~ "Kalemie",
+      death_zs == 746102 ~ "Nyemba",
+      death_zs == 746601 ~ "Nyunzu",
+      TRUE ~ as.character(death_zs)
+    )) %>% 
+  ggplot(aes(x = as.factor(death_month))) + 
+  geom_bar(position=position_dodge2(.9), fill = "grey", color = "black") +
+  geom_text(stat='count', aes(label=after_stat(count)), vjust = -.5) + 
+  ylim(0, 80) + 
+  cowplot::theme_cowplot() + 
+  labs(x = "Month of Death",
+       title = "Reported Number of Deaths (Panels = Month of Interview)") + 
+  facet_grid(rows = vars(report_month), cols = vars(death_zs_full))
+
+report_plot_zs
+```
+
+
+

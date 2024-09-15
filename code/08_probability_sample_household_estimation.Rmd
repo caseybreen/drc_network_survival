@@ -205,3 +205,25 @@ education_disparities_plot <- education_disparities %>%
 education_disparities_plot %>%
   ggsave(filename = here("figures/mortality_disparities_by_education.png"), height = 5, width = 7)
 ```
+
+
+
+```{r}
+hh_sample_deaths %>% 
+  mutate(cat = case_when(
+    death_hh_or_neighbour == "neighbour" ~ "Neighbor (not kin)",
+    death_hh_or_neighbour == "neither" ~ "Kin (not neighbor or own household)",
+    death_hh_or_neighbour == "own_hh" ~ "Own household"
+  )) %>%
+  mutate(month = lubridate::floor_date(final_date_death, "month")) %>% 
+  filter(month >= as_date("2023-01-01")) %>% 
+  filter(month <= as_date("2023-07-01")) %>% 
+  count(month, cat) %>% 
+  ggplot(aes(x = month, y = n, color = cat)) + 
+  geom_point() + 
+  geom_line() + 
+  geom_text(aes(x = month, y = n + 10, label = n)) + 
+  theme_cowplot()+ 
+  ylim(0, 260)
+```
+

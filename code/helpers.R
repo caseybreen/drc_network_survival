@@ -1,8 +1,13 @@
 ##########################
 # library helper functions
-#
 ##########################
 
+## set number of bootstrap samples
+n_bootstrap_samples <- 100
+
+
+
+## library packages
 library(tidyverse)
 library(data.table)
 library(gt)

@@ -5,9 +5,9 @@ author: Casey Breen
 
 ## Summary 
 
-This script runs all code to replicate figures and tables. 
+This script runs all code to replicate figures and tables. The scripts are numbered in the order they should be run.
 
-The scripts are numbered in the order they should be run.
+The number of bootstrap resamples is set at the top of the `helpers.R` function. 
 
 ```{r}
 ## library packages 
@@ -15,7 +15,6 @@ library(here)
 source(here("code", "helpers.R"))
 
 ## list of rmd files 
-
 rmd_files <- list.files(path = file.path(here("code//")), pattern=".Rmd")   
 rmd_files <- rmd_files[!rmd_files %in% "00_run_all.Rmd"]
 
