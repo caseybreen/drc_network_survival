@@ -14,7 +14,6 @@ source(here("code", "helpers.R"))
 ## read in datasets
 hh_sample_mortality_long <- read_csv(here("data", "data_clean", "hh_sample_mortality_long.csv"))
 hh_sample_deaths <- read_csv(here("data", "data_clean", "hh_sample_deaths.csv"))
-hh_sample_neighbors <- read_csv(here("data", "data_clean", "hh_sample_neighbors.csv"))
 hh_sample_respondent_df <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv"))
 ```
 
@@ -49,8 +48,8 @@ age_specific_cdr_plot <- age_specific_cdr %>%
   geom_pointrange() +
   theme_cowplot() +
   labs(
-    x = "                              Age Group",
-    y = "Estimated average age-specific death rates \n (per 10,000 person-days)"
+    x = "Age Group",
+    y = "Crude Death Rate \n (per 10,000 person-days)"
   ) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
@@ -215,6 +214,7 @@ hh_sample_deaths %>%
     death_hh_or_neighbour == "neither" ~ "Kin (not neighbor or own household)",
     death_hh_or_neighbour == "own_hh" ~ "Own household"
   )) %>%
+  filter(!is.na(cat)) %>% 
   mutate(month = lubridate::floor_date(final_date_death, "month")) %>% 
   filter(month >= as_date("2023-01-01")) %>% 
   filter(month <= as_date("2023-07-01")) %>% 
@@ -223,7 +223,7 @@ hh_sample_deaths %>%
   geom_point() + 
   geom_line() + 
   geom_text(aes(x = month, y = n + 10, label = n)) + 
-  theme_cowplot()+ 
+  theme_cowplot() + 
   ylim(0, 260)
 ```
 

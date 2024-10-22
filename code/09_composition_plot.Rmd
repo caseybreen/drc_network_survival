@@ -1,0 +1,103 @@
+---
+title: "Composition Plot"
+author: Casey Breen
+---
+
+
+
+```{r}
+## library packages 
+library(here)
+source(here("code", "helpers.R"))
+ 
+## read in survey df
+quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv"))  %>%
+  filter(enum != "team11")
+
+weight_targets_ipw <- read_csv(here("data/weighting/hh_weighting_micro_df.csv"))
+```
+
+
+```{r}
+## weight targets ipw 
+margin <- weight_targets_ipw %>% 
+  mutate(survey = "Household") %>% 
+  bind_rows(quota_sample_survey %>% 
+              mutate(survey = "quota")) %>% 
+  select(survey, gender, age_class, hh_size_categorical, radio, bed, manufactured_material_house, modern_fuel_type, age_u5_count, age_5_18_count,  age_18plus_count, health_zone)
+
+
+
+margin_df <- margin %>%
+  mutate(manufactured_material_house = case_when(
+         manufactured_material_house == 1 ~ "Modern",
+         manufactured_material_house == 0 ~ "Traditional")) %>% 
+  mutate(modern_fuel_type = case_when(
+    modern_fuel_type == 1 ~ "Modern",
+    TRUE ~ "Traditional"
+  )) %>% 
+  mutate(radio = case_when(
+    radio == "yes" ~ "Yes",
+    TRUE ~ "No"
+  )) %>% 
+   mutate(bed = case_when(
+    bed == "yes" ~ "Yes",
+    TRUE ~ "No"
+  )) %>% 
+    mutate(gender = case_when(
+    gender == "m" ~ "Male",
+    TRUE ~ "Female"
+  )) %>% 
+  pivot_longer(-c(survey, health_zone)) %>% 
+  group_by(survey, name, health_zone) %>% 
+  count(value) %>% 
+  group_by(survey, name, health_zone) %>% 
+  mutate(n = n / sum(n))
+
+margin_df <- margin_df %>% 
+  pivot_wider(names_from = survey, values_from = n) %>% 
+  select(variable = name, level = value, proportion = quota, proportion_pop = Household) 
+
+margin_comparison_plot <- margin_df %>%  
+  filter(!is.na(level)) %>% 
+  mutate(variable = case_when( 
+    variable == "age_18plus_count" ~ "HH 18+", 
+    variable == "age_5_18_count"   ~ "HH 5-18", 
+    variable == "age_u5_count" ~ "HH U5", 
+    variable == "hh_size_categorical" ~ "HH Size", 
+    variable == "wealth_score_categorical" ~ "Wealth Score",
+    variable == "gender" ~ "Gender", 
+    variable == "age_class" ~ "Age",
+    variable == "bed" ~ "Bed",
+    variable == "radio" ~ "Radio",
+    variable == "manufactured_material_house" ~ "Wall type",
+    variable == "modern_fuel_type" ~ "Fuel Type"
+  )) %>% 
+  # filter(health_zone != "Nyemba") %>%
+  filter(!variable %in% c("HH 18+", "HH 5-18", "HH U5")) %>%
+  mutate(variable = factor(variable, levels = c(
+    "Age", "Gender", "HH Size", "Bed", "Fuel Type", "Radio", "Wall type"
+  ))) %>% # Adjust the factor levels here
+  ggplot() +
+  geom_segment(aes(xend = proportion, x = proportion_pop, y = level, yend = level),
+               color = 'black', 
+               alpha = 0.5) + 
+  geom_point(size = 1.5, aes(x = proportion, y = level, color = "Sample")) +  # Color inside aes -->
+  geom_point(size = 1.5, aes(x = proportion_pop, y = level, color = "Population")) +  # Color inside aes -->
+  facet_grid(variable ~ health_zone, scales = 'free_y', space = 'free_y', switch = 'y') + 
+  labs(x = "Proportion", y = "") + 
+  scale_color_manual(name = "", values = c("Sample" = "black", 'Population' = "red")) + 
+  scale_x_continuous(labels = scales::percent_format(), n.breaks = 10) + 
+  theme_bw() + 
+  theme(legend.position = c(1, 1), # Top-right corner -->
+        legend.justification = c("right", "top"), # Anchor the legend at its top-right -->
+        legend.direction = 'vertical', 
+        legend.margin = margin(t = 0, unit = 'cm'), 
+        legend.box.background = element_rect(colour = "black"), 
+        legend.title = element_blank())
+
+ggsave(plot = margin_comparison_plot, filename = here("figures", "margin_comparison_plot.png"), width = 10, height = 8)
+```
+
+
+

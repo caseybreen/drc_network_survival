@@ -1,9 +1,11 @@
 ---
-title: "Generate weights - quota sample"
+title: "Generate weights - don't drop enum 11"
 author: "Casey Breen" 
 ---
 
 Generate weights - estimation code 
+
+
 
 ```{r}
 ## library packages 
@@ -17,12 +19,12 @@ weighting_targets <- read_csv(here("data/weighting/weighting_targets.csv"))
 weighting_targets_micro <- read_csv(here("data/weighting/hh_weighting_micro_df.csv"))
 
 ## read in data 
-survey_df <- read_csv(here("data/data_clean/quota_sample_survey.csv")) %>%
-  filter(enum != "team11")
+survey_df <- read_csv(here("data/data_clean/quota_sample_survey.csv")) %>% 
+  select(-weight_poststrat, -weight_ipw)
 
 ## read in death df 
-death_df <- read_csv(here("data/data_clean/quota_sample_deaths.csv")) %>%
-  filter(death_enum != "team11")
+death_df <- read_csv(here("data/data_clean/quota_sample_deaths.csv")) %>% 
+  select(-weight_poststrat, -weight_ipw)
 ```
 
 ## Marginal population totals 
@@ -100,8 +102,6 @@ death_weighted <- death_df %>%
 
 ```{r}
 ## write csv 
-write_csv(death_weighted, here("data", "data_clean", "quota_sample_deaths.csv"))
-write_csv(survey_df_weighted, here("data", "data_clean", "quota_sample_survey.csv"))
+write_csv(death_weighted, here("data", "data_clean", "quota_sample_deaths_enum11.csv"))
+write_csv(survey_df_weighted, here("data", "data_clean", "quota_sample_survey_enum11.csv"))
 ```
-
-

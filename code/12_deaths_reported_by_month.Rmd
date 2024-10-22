@@ -7,11 +7,8 @@ author: Casey Breen
 
 ```{r}
 ## library packages
-library(tidyverse)
-library(data.table)
-library(gt)
 library(here)
-library(cowplot)
+source(here("code", "helpers.R"))
 
 ## read in data
 survey_df <- read_csv(here("data/data_clean/quota_sample_survey.csv"))
@@ -25,9 +22,6 @@ death_df <- read_csv(here("data/data_clean/quota_sample_deaths.csv")) %>%
 ```
 
 ```{r}
-library(tidyverse)
-library(lubridate)
-
 # Calculate time difference and categorize deaths into time groups
 death_df <- death_df %>%
   mutate(
@@ -64,7 +58,7 @@ death_df <- death_df %>%
 
 # Aggregate data by month of interview, death period, and tie, while filtering out February and NA
 agg_data <- death_df %>%
-  filter(zone_de_sante_name != "Nyunzu") %>%
+  filter(health_zone != "Nyunzu") %>%
   filter(!is.na(death_period) & month(death_date_dc) != 2) %>%
   group_by(month = floor_date(death_date_dc, "month"), death_period, tie) %>%
   summarize(death_count = n()) %>%
@@ -116,13 +110,6 @@ ggplot(agg_data, aes(x = month, y = death_count, color = death_period, linetype 
   theme(legend.position = "bottom") +
   facet_grid(zone_de_sante_name ~ tie)
 ```
-
-```{r}
-death_df %>%
-  filter(!is.na(death_period) & month(death_date_dc) != 2) %>%
-  group_by(month = floor_date(death_date_dc, "month"), death_period, tie)
-```
-
 
 
 ## Month of death X month of interview 

@@ -20,10 +20,14 @@
 #' @export
 
 
-compute_cdr_comprehensive <- function(death_df, survey_df, weight_col, bootstrap = NA, monthly = FALSE,
-                                      subpopulation = NULL, HH = F, blended_weight_kin = 0.5014031,
+compute_cdr_comprehensive <- function(death_df, survey_df,
+                                      weight_col,
+                                      bootstrap = NA,
+                                      monthly = FALSE,
+                                      subpopulation = NULL,
+                                      blended_weight_kin = 0.5014031,
                                       weight_targets = weighting_targets,
-                                      weight_type = "poststrat",
+                                      weight_type = "default",
                                       prob_survey_cutoff_flag = NA) {
 
   ## create list to store results
@@ -97,8 +101,8 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col, bootstrap
         boot_survey_df <- networksurvival::generate_ipw_weights(weighting_targets = weight_targets, survey_df = boot_survey_df) %>%
           mutate(weight_col = weight_ipw)
       } else {  # This else branch can be for raking or a default case
-        boot_survey_df <- networksurvival::generate_raking_weights(weighting_targets = weight_targets, survey_df = boot_survey_df) %>%
-          mutate(weight_col = weight_raking)  # Assuming 'weight_raking' is your column name for raking weights
+        boot_survey_df <- boot_survey_df %>%
+          mutate(weight_col = 1)  # Assuming 'weight_raking' is your column name for raking weights
       }
 
       ## weights
@@ -165,6 +169,8 @@ compute_cdr_comprehensive <- function(death_df, survey_df, weight_col, bootstrap
     ) %>%
     mutate(weights = case_when(
       weights == "_unweighted" ~ "unweighted",
-      TRUE ~ "poststrat"
+      TRUE ~ weight_col
     ))
+
+
 }

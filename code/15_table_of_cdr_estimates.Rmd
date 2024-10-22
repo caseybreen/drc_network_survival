@@ -1,0 +1,57 @@
+---
+title: "Tabualar Results"
+output: html_notebook
+---
+
+
+```{r}
+library(here)
+source(here("code", "helpers.R"))
+```
+
+
+```{r}
+## read in estimates 
+cdr_estimates <- read_csv(here("out", "cdr_estimates.csv"))
+```
+
+```{r}
+# Example data frame with more rows to demonstrate a multi-page table
+table_df <- cdr_estimates %>% 
+  select(survey, tie = type, health_zone, month, weights, death_rate, death_rate_lower, death_rate_upper) %>% 
+  mutate(across(where(is.numeric), ~ round(.x, 2))) %>% 
+  mutate(weights = case_when(
+    weights == "weight_poststrat" ~ "Poststrat",
+    weights == "weight_ipw" ~ "IPW",
+    weights == "unweighted" ~ "Unweighted"
+  )) %>% 
+  mutate(survey = case_when(
+    survey == "probability" ~ "Probability", 
+    survey == "quota" ~ "Quota",
+  )) %>% 
+  mutate(tie = case_when(
+    tie == "blended" ~ "Blended",
+    tie == "household" ~ "Household",
+    tie == "kin" ~ "Kin",
+    tie == "neighbor" ~ "Neighbor"
+  )) %>% 
+  mutate(health_zone = case_when(
+    health_zone == "pooled" ~ "-",
+    TRUE ~ health_zone
+  )) %>% 
+  mutate(month = case_when(
+    month == "pooled" ~ "-",
+    TRUE ~ month
+  ))
+
+# Create the LaTeX table using kable with longtable support
+latex_table <- print(kable(table_df, format = "latex", booktabs = TRUE, longtable = TRUE, caption = "Death rate estimates for different health zones and months.") %>%
+  kable_styling(latex_options = c("hold_position", "repeat_header")))
+
+
+writeLines(latex_table, here("figures", 'cdr_table.tex'))
+```
+
+
+
+

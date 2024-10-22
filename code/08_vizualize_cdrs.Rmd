@@ -1,0 +1,242 @@
+---
+title: "Custom CDRs"
+author: Casey Breen
+---
+
+Summary: Plot CDR estimates 
+
+
+```{r}
+library(here)
+source(here("code", "helpers.R"))
+
+## read in estimates 
+cdr_estimates <- read_csv(here("out", "cdr_estimates.csv"))
+```
+
+
+## quota estimates 
+
+```{r}
+# Create visualizations 
+cdr_pooled_plot <- cdr_estimates %>% 
+  filter(health_zone == "pooled" & month == "pooled" & survey == "quota") %>% 
+    mutate(type = case_when(
+    type == "blended" ~ "Blended \n (Kin + Neighbor)",
+    type == "kin" ~ "Kin",
+    type == "neighbor" ~ "Neighbor",
+    type == "household" ~ "Household",
+    TRUE ~ type
+  )) %>% 
+  mutate(
+    type = factor(type, levels = c("Kin", "Neighbor", "Blended \n (Kin + Neighbor)", "Household")),
+    weights = factor(case_when(
+      weights == "weight_poststrat" ~ "Poststratification",
+      weights == "unweighted" ~ "Unweighted",
+      weights == "weight_ipw" ~ "Inverse Probability"
+    ), levels = c("Unweighted", "Poststratification", "Inverse Probability"))
+  ) %>%
+  ggplot(aes(x = type, color = weights, y = death_rate, shape = weights, ymin = death_rate_lower, ymax = death_rate_upper)) + 
+  geom_pointrange(position = position_dodge(.2), size = .75, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23, 24)) +
+  ggsci::scale_color_lancet() + 
+  scale_color_manual(values = cud) + 
+  ylim(0, 1) + 
+  theme_half_open(12) + 
+  theme(legend.position = "bottom", legend.title = element_blank(),
+        panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+        panel.grid.major.y = element_line(color = "grey90")) +
+  labs(x = "Network Tie", y = "Crude Death Rate \n (per 10,000 person days)")
+
+
+
+## save main estimate plot 
+ggsave(plot = cdr_pooled_plot, filename = here("figures", "fig4_cdr_pooled_plot.png"), width = 6, height = 4)
+```
+
+## quota survey - month 
+
+
+```{r}
+## visualize cdr point esitmates 
+cdr_monthly_plot <- cdr_estimates %>% 
+  filter(health_zone == "pooled" & month != "pooled" & survey == "quota" & type == "blended" & weights == "weight_ipw") %>% 
+  mutate(month = as_date(month)) %>% 
+  ggplot(aes(x = month, y = death_rate)) + 
+  geom_ribbon(aes(ymin = death_rate_lower, ymax = death_rate_upper), alpha = 0.1, color = "black", fill = "blue", position = position_dodge(0)) +
+    geom_line(linetype = "dashed", alpha = 0.3, color = "black") +
+  scale_shape_manual(values = c(21, 22, 23)) +
+  ggsci::scale_color_lancet() +
+  theme_cowplot() + 
+  ylim(0, 1) +
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  labs(x = "Month of Death", y = "Crude Death Rate")
+
+
+ggsave(plot = cdr_monthly_plot, filename = here("figures", "cdr_monthly_plot.png"), width = 6, height = 4)
+```
+
+
+
+```{r}
+## visualize results 
+cdr_pooled_heath_zones_plot <- cdr_estimates %>% 
+  filter(health_zone != "pooled" & month == "pooled" & survey == "quota") %>% 
+  mutate(weights_full = case_when(
+    weights == "poststrat" ~ "IPW Weights",
+    weights == "unweighted" ~"Unweighted"
+  )) %>% 
+  ggplot(aes(x = health_zone, color = type, shape = type, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
+  geom_pointrange( position = position_dodge(.5), size = 1, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23, 24)) +
+  scale_color_viridis_d() +  
+  ylim(0, 2) + 
+  theme_cowplot() + 
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
+  labs(x = "Health Zone", y = "Crude Death Rate \n (per 10,000 person days)") + 
+  facet_wrap(~weights)
+
+ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures", "cdr_pooled_heath_zones_plot.png"), width = 9, height = 4)
+```
+
+
+
+```{r}
+un_estimate <- 10 * 10/365 
+smart_survey <- 0.58
+
+## visualize results 
+cdr_network_comparisons <- cdr_estimates %>% 
+  filter(health_zone == "pooled" & month == "pooled") %>% 
+  filter(survey == "probability" | survey == "quota" & weights == "weight_ipw") %>% 
+  ggplot(aes(x = type, shape = survey, color = survey, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
+  geom_pointrange( position = position_dodge(.25), size = 1, fill = "white") +
+  scale_shape_manual(values = c(21, 22)) +
+  ylim(0, 1) + 
+  theme_cowplot() + 
+  ggsci::scale_color_lancet() + 
+  theme(legend.position = "bottom", legend.title = element_blank()) + 
+    labs(x = "", y = "Crude Death Rate \n (per 10,000 person-days)") +
+  geom_hline(yintercept = un_estimate, linetype = "dashed", color = "grey")
+
+ggsave(plot = cdr_network_comparisons, filename = here("figures", "cdr_quota_prob_network_comparisons.png"), width = 8, height = 5)
+```
+
+
+
+```{r}
+household_wrong <- 32.68 * 10/365
+household_adjusted <- 9.2 * 10/365
+household_adjusted_lower <- 5.4 * 10/365
+household_adjusted_upper <- 12.9 * 10/365
+
+
+auxiliary_estimates <- tibble(
+  survey = c("Probability", "Triangulation", "Probability"),
+  type = c("Jarrett et al. (2020)", "Jarrett et al. (2020)", "Smart Survey 2022"), 
+  death_rate = c(household_wrong, household_adjusted, 0.58),
+  death_rate_upper = c(0.7711899, household_adjusted_lower, 0.34), 
+  death_rate_lower = c(1.019499, household_adjusted_upper, 0.98)
+)
+
+# Assuming 'un_estimate' is defined somewhere in your code as the UN estimate value.
+cdr_comparison_external <- cdr_estimates %>%
+  filter(health_zone == "pooled" & month == "pooled") %>% 
+  filter(type == "blended" | type == "household") %>% 
+  filter(weights %in% c("unweighted", "weight_ipw")) %>% 
+  filter(!(survey == "quota" & weights == "unweighted")) %>% 
+  mutate(survey = case_when(
+    survey == "probability" ~ "Probability",
+    survey == "quota" ~ "Quota"
+  )) %>%
+  mutate(type = case_when(
+    type == "blended" ~ "Network Survival",
+    type == "household" ~ "Household",
+    TRUE ~ NA_character_
+  )) %>%
+  filter(!is.na(type)) %>%
+  bind_rows(auxiliary_estimates) %>%
+  mutate(
+    type = factor(type, levels = c("Network Survival", "Household", "Jarrett et al. (2020)", "Smart Survey 2022")),
+    study_category = ifelse(type %in% c("Network Survival", "Household"), "This Study", "Other Studies"),
+    un_label = ifelse(type %in% c("Network Survival", "Household"), "DRC National-Level Estimate (UN)", NA)
+  ) %>%
+  mutate(study_category = factor(study_category, levels = c("This Study", "Other Studies"))) %>%
+  ggplot(aes(x = type, shape = survey, color = survey, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) +
+  geom_pointrange(position = position_dodge(width = 0.25), size = 1, fill = "white") +
+  scale_shape_manual(values = c("Probability" = 21,   # Circle for Probability
+                                "Quota" = 23,        # Diamond for Quota
+                                "Triangulation" = 22  # Square for gold standard 
+  )) +
+  scale_color_manual(values = c("Probability" = "#0072B2",  # Blue for Probability
+                                "Quota" = "#009E73",        # Green for Quota
+                                "Triangulation" = "#E69F00"  # Orange for gold standard
+  )) +
+  ylim(0, 1.03) +
+  theme_cowplot() +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 12, colour = "black"),
+    panel.spacing.x = unit(0, "lines")  # Reduced spacing between panels
+  ) +
+  labs(x = "", y = "Crude Death Rate \n (per 10,000 person-days)") +
+  geom_hline(yintercept = un_estimate, linetype = "dashed", color = "grey") +  # DRC national-level estimate line for both panels
+  facet_wrap(~study_category, scales = "free_x", ncol = 2) 
+
+
+# Finally, it is possible to move the annotation inside of the plot if desired.
+cdr_comparison_external <- ggdraw(add_sub(cdr_comparison_external, "DRC National-Level Estimate (UN)", vpadding=grid::unit(0, "lines"),
+       y = 16, x = 0.03, hjust = 0, color = "grey36", size = 11))
+
+ggsave(plot = cdr_comparison_external, filename = here("figures", "fig5_cdr_comparison_external.png"), width = 8, height = 5)
+```
+
+
+
+```{r}
+## add on auxiliary estimates 
+kalemie_figure_df <- cdr_estimates %>% 
+  bind_rows(auxiliary_estimates) %>% 
+  filter(health_zone == "Kalemie" | type == "Smart Survey 2022") %>% 
+  filter(weights == "weight_ipw" | is.na(weights) | weights == "unweighted" & survey == "probability") %>% 
+  mutate(survey = case_when(
+    survey == "Probability" ~ "Smart Survey",
+    survey == "probability" ~ "Probability",
+    survey == "quota" ~ "Quota",
+    TRUE ~ survey
+  ))
+
+## Define the desired order
+desired_order <- c('Smart Survey 2022', 'neighbor', 'kin', 'blended', 'household')
+kalemie_figure_df$type <- factor(kalemie_figure_df$type, levels = desired_order)
+
+
+cdr_comparison_external_kalemie <- kalemie_figure_df %>% 
+  ggplot(aes(x = type, shape = survey, color = survey, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) +
+  geom_pointrange(position = position_dodge(width = 0.25), size = 1, fill = "white") +
+  scale_shape_manual(values = c("Probability" = 21,   # Circle for Probability
+                                "Quota" = 23,        # Diamond for Quota
+                                "Smart Survey" = 22  # Square for gold standard 
+  )) +
+  scale_color_manual(values = c("Probability" = "#0072B2",  # Blue for Probability
+                                "Quota" = "#009E73",        # Green for Quota
+                                "Smart Survey" = "#E69F00"  # Orange for gold standard
+  )) +
+  ylim(0, 1.1) +
+  theme_cowplot() +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    strip.background = element_blank(),
+    strip.text.x = element_text(size = 12, colour = "black"),
+    panel.spacing.x = unit(0, "lines")  # Reduced spacing between panels
+  ) +
+  labs(x = "", y = "Crude Death Rate \n (per 10,000 person-days)") 
+
+
+ggsave(plot = cdr_comparison_external_kalemie, filename = here("figures", "kalemie_smart_survey_comparison.png"), width = 8, height = 5)
+```
+
+

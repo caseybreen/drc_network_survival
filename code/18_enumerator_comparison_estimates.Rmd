@@ -1,0 +1,148 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+## read in survey df
+quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey_enum11.csv")) 
+
+## read in death df 
+quota_sample_deaths <- read_csv(here("data", "data_clean", "quota_sample_deaths_enum11.csv")) 
+quota_sample_deaths <- quota_sample_deaths %>% 
+  mutate(report_month = floor_date(death_date_dc, "month"))
+
+## read in weighting targets 
+weighting_targets_poststrat <- read_csv(here("data", "weighting", "weighting_targets.csv"))
+weighting_targets_raking <- read_csv(here("data", "weighting", "weighting_raking_targets.csv"))
+weight_targets_ipw <- read_csv(here("data/weighting/hh_weighting_micro_df.csv"))
+```
+
+
+
+```{r}
+## Estimate point estimates - IPW weights 
+cdr_point_quota_ipw <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                          survey_df = quota_sample_survey,
+                                                                          weight_col = "weight_ipw",
+                                                                          bootstrap = NA)
+## bootstraps 
+cdr_bootstrap_quota_ipw <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                             survey_df = quota_sample_survey, 
+                                                                             weight_col = "weight_ipw",
+                                                                             weight_targets = weight_targets_ipw,
+                                                                             weight_type = "ipw", 
+                                                                             bootstrap = n_bootstrap_samples) 
+
+## Zone de sante - Uncertainty Intervals
+cdr_uncertainty_quota_ipw <- cdr_bootstrap_quota_ipw %>% 
+  group_by(type, weights) %>% 
+  summarize(death_rate_lower = quantile(death_rate, 0.025),
+            death_rate_upper = quantile(death_rate, 0.975)) 
+
+## perform join 
+cdr_point_uncertainty_quota_ipw <- inner_join(cdr_point_quota_ipw, cdr_uncertainty_quota_ipw, by = c("type", "weights")) %>% 
+  mutate(survey = "quota") %>% 
+  mutate(weights = case_when(
+    weights == "poststrat" ~ "ipw",
+    TRUE ~ weights))
+
+```
+
+
+
+
+```{r}
+## Estimate point estimates - poststratification weights 
+cdr_point_quota_poststrat <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                  survey_df = quota_sample_survey,
+                                                                  weight_col = "weight_poststrat")
+
+## bootstrap 
+cdr_boostrap_quota_poststrat <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                   survey_df = quota_sample_survey,
+                                                                   bootstrap = n_bootstrap_samples,
+                                                                   weight_col = "weight_poststrat",
+                                                                   weight_type = "poststrat",
+                                                                   weight_targets = weighting_targets_poststrat)
+
+## Zone de sante - Uncertainty Intervals
+cdr_uncertainty_quota_poststrat <- cdr_boostrap_quota_poststrat %>% 
+  group_by(type, weights) %>% 
+  summarize(death_rate_lower = quantile(death_rate, 0.025),
+            death_rate_upper = quantile(death_rate, 0.975)) 
+
+## perform join 
+cdr_point_uncertainty_quota_poststrat <- inner_join(cdr_point_quota_poststrat, cdr_uncertainty_quota_poststrat, by = c("type", "weights")) %>% 
+  mutate(survey = "quota")
+```
+
+
+
+
+```{r}
+cdr_estimates <- read_csv(here("out", "cdr_estimates.csv"))
+```
+
+
+
+```{r}
+estimates_no_enum11 <- cdr_estimates %>% 
+  filter(survey == "quota") %>% 
+  filter(health_zone == "pooled" & month == "pooled") %>% 
+  mutate(enum = "dropped")
+```
+
+
+
+
+```{r}
+estimates_full <- bind_rows(cdr_point_uncertainty_quota_poststrat, cdr_point_uncertainty_quota_ipw) %>% 
+  mutate(enum = "keep")
+```
+
+
+
+```{r}
+comparison_fig <- estimates_full %>% 
+  bind_rows(estimates_no_enum11) %>% 
+    mutate(type = case_when(
+    type == "blended" ~ "Blended \n (Kin + Neighbor)",
+    type == "kin" ~ "Kin",
+    type == "neighbor" ~ "Neighbor",
+    type == "household" ~ "Household",
+    TRUE ~ type
+  )) %>% 
+  mutate(
+    type = factor(type, levels = c("Kin", "Neighbor", "Blended \n (Kin + Neighbor)", "Household")),
+    weights = factor(case_when(
+      weights == "weight_poststrat" ~ "Poststratification",
+      weights == "unweighted" ~ "Unweighted",
+      weights == "weight_ipw" ~ "Inverse Probability"
+    ), levels = c("Unweighted", "Poststratification", "Inverse Probability"))
+  ) %>%
+  mutate(enum = case_when(
+    enum == "dropped" ~ "Drop Enumerator", 
+    enum == "keep" ~ "Keep Enumerator"
+  )) %>% 
+  ggplot(aes(x = enum, color = weights, y = death_rate, shape = weights, ymin = death_rate_lower, ymax = death_rate_upper)) + 
+  geom_pointrange(position = position_dodge(.2), size = .75, fill = "white") +
+  scale_shape_manual(values = c(21, 22, 23, 24)) +
+  ggsci::scale_color_lancet() + 
+  scale_color_manual(values = cud) + 
+  ylim(0, 1) + 
+  theme_half_open(12) + 
+  theme(legend.position = "bottom", legend.title = element_blank(),
+        panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+        panel.grid.major.y = element_line(color = "grey90")) +
+  labs(x = "Network Tie", y = "Crude Death Rate \n (per 10,000 person days)") + 
+  facet_wrap(~type)
+
+ggsave(plot = comparison_fig, filename = here("figures/enumerator_comparison_estimates.png"), height = 5, width = 7)
+
+```
+
+
+
+

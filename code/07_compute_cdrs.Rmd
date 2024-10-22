@@ -1,0 +1,281 @@
+---
+title: "Compute CDRs"
+author: Casey Breen
+---
+
+Summary: compute CDRs for quota and probability surveys 
+
+
+## read in data 
+
+```{r}
+## library packages 
+library(here)
+source(here("code", "helpers.R"))
+ 
+## read in datasets
+probability_sample_mortality_long <- read_csv(here("data", "data_clean", "hh_sample_mortality_long.csv"))
+probability_sample_deaths <- read_csv(here("data", "data_clean", "hh_sample_deaths.csv"))
+probability_sample_neighbors <- read_csv(here("data", "data_clean", "hh_sample_neighbors.csv"))
+probability_sample_respondent <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv")) 
+
+## read in survey df
+quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv")) 
+quota_sample_survey <- quota_sample_survey %>%
+  filter(enum != "team11")
+
+## read in death df 
+quota_sample_deaths <- read_csv(here("data", "data_clean", "quota_sample_deaths.csv")) 
+quota_sample_deaths <- quota_sample_deaths %>% mutate(report_month = floor_date(death_date_dc, "month")) %>% 
+  filter(death_enum != "team11")
+
+## read in weighting targets 
+weighting_targets_poststrat <- read_csv(here("data", "weighting", "weighting_targets.csv"))
+weighting_targets_raking <- read_csv(here("data", "weighting", "weighting_raking_targets.csv"))
+weight_targets_ipw <- read_csv(here("data/weighting/hh_weighting_micro_df.csv"))
+```
+
+
+
+```{r}
+probability_sample_respondent <- probability_sample_respondent %>% 
+  mutate(health_zone = health_zone,
+         gender = case_when(
+           sexe_repondant == "f" ~ "f",
+           sexe_repondant == "m" ~ "m",
+           sexe_repondant == "f'" ~ "f"
+          ),
+         age_class = case_when(
+    age_repondant %in% c(18:24) ~ "[18,25)",
+    age_repondant %in% c(25:34) ~ "[25,35)",
+    age_repondant %in% c(33:44) ~ "[35,45)",
+    age_repondant %in% c(45:54) ~ "[45,55)",
+    age_repondant %in% c(55:64) ~ "[55,65)",
+    age_repondant %in% c(65:100) ~ "[65,100]"
+  )) %>% 
+  mutate(age_gender = paste0(gender, " | ", age_class))
+
+
+probability_sample_respondent <- probability_sample_respondent %>% 
+  mutate(
+    a_total_kin = a_male_child_total + a_female_child_total +
+                  a_male_grandchild_total + a_female_grandchild_total +
+                  a_sisters_total + a_brothers_total +
+                  a_male_cousins_total + a_female_cousins_total +
+                  a_parents_total + a_aunts_total +
+                  a_uncles_total + a_grandfathers_total + a_grandmothers_total,
+                  
+    b_total_kin = b_male_child_total + b_female_child_total +
+                  b_male_grandchild_total + b_female_grandchild_total +
+                  b_sisters_total + b_brothers_total +
+                  b_male_cousins_total + b_female_cousins_total +
+                  b_parents_total + b_aunts_total +
+                  b_uncles_total + b_grandfathers_total + b_grandmothers_total)
+
+probability_sample_respondent <- probability_sample_respondent %>% 
+  mutate(num_total_kin = coalesce(a_total_kin, b_total_kin)) %>% 
+  mutate(num_total_kin = as.numeric(num_total_kin)) %>% 
+  mutate(sum_neighbours = coalesce(a_sum_neighbours, b_sum_neighbours)) %>% 
+  mutate(num_total_hh_neighbour = as.numeric(sum_neighbours) + as.numeric(num_hh)) %>% 
+  mutate(num_total_neighbour = as.numeric(sum_neighbours)) %>% 
+  mutate(num_total_hh = as.numeric(num_hh)) %>% 
+  mutate(start_month = 1,
+         weight_poststrat = 1) %>% 
+  mutate(uuid_ki = uuid_col)
+
+probability_sample_deaths <- probability_sample_deaths %>% 
+  filter(!death_blood_relative_type %in% c("nephew", "niece")) %>% 
+  mutate(`death_relationship/family` = is_kin,
+         `death_relationship/neighbour` = is_neighbour,
+         `death_relationship/household` = is_hh) %>% 
+  mutate(uuid_ki = `_submission__uuid`) %>% 
+  mutate(weight_poststrat = 1)
+```
+
+## Probability Survey Estimates 
+
+```{r}
+## £stimate point estimates 
+cdr_point_probability <- networksurvival::compute_cdr_comprehensive(death_df = probability_sample_deaths,
+                                                                    survey_df = probability_sample_respondent,
+                                                                    weight_col = "weight_poststrat",
+                                                                    bootstrap = NA, 
+                                                                    prob_survey_cutoff_flag = T)
+
+
+cdr_bootstrap_probability <- networksurvival::compute_cdr_comprehensive(death_df = probability_sample_deaths,
+                                                                     survey_df = probability_sample_respondent, 
+                                                                     weight_col = "weight_poststrat",
+                                                                     bootstrap = n_bootstrap_samples,
+                                                                     prob_survey_cutoff_flag = T)
+
+## Uncertainty Intervals
+cdr_uncertainty_probability <- cdr_bootstrap_probability %>% 
+  group_by(type, weights) %>% 
+  summarize(death_rate_lower = quantile(death_rate, 0.025),
+            death_rate_upper = quantile(death_rate, 0.975)) 
+
+## perform join 
+cdr_point_uncertainty_probability <- inner_join(cdr_point_probability, cdr_uncertainty_probability, by = c("type", "weights")) %>% 
+  filter(weights == "unweighted") %>% 
+  mutate(survey = "probability")
+```
+
+## probability health zones 
+
+```{r}
+## Point estimates 
+cdr_point_probability_health_zones <- networksurvival::compute_cdr_comprehensive(death_df = probability_sample_deaths,
+                                                                                        survey_df = probability_sample_respondent,
+                                                                                        weight_col = "weight_poststrat",
+                                                                                        subpopulation = "health_zone" ,
+                                                                                        bootstrap = NA, 
+                                                                                 prob_survey_cutoff_flag = T)
+
+## Uncertainty estimates 
+cdr_boostrap_probability_health_zones <- networksurvival::compute_cdr_comprehensive(death_df = probability_sample_deaths,
+                                                                                            survey_df = probability_sample_respondent, 
+                                                                                            weight_col = "weight_poststrat",
+                                                                                            bootstrap = n_bootstrap_samples,
+                                                                                            subpopulation = "health_zone",
+                                                                                            prob_survey_cutoff_flag = T)
+
+## Uncertainty Intervals
+cdr_uncertainty_probability_health_zones <- cdr_boostrap_probability_health_zones %>% 
+  group_by(type, weights, health_zone ) %>% 
+  summarize(death_rate_lower = quantile(death_rate, 0.025),
+            death_rate_upper = quantile(death_rate, 0.975)) %>% 
+  mutate(survey = "Probability survey")
+
+## perform join 
+cdr_point_uncertainty_probability_health_zones <- inner_join(cdr_point_probability_health_zones, cdr_uncertainty_probability_health_zones, by = c("type", "weights", "health_zone")) %>% 
+  filter(weights == "unweighted") %>% 
+  mutate(survey = "probability")
+```
+
+
+## Quota Survey Survey Estimates 
+
+```{r}
+## Estimate point estimates - IPW weights 
+cdr_point_quota_ipw <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                          survey_df = quota_sample_survey,
+                                                                          weight_col = "weight_ipw",
+                                                                          bootstrap = NA)
+## bootstraps 
+cdr_bootstrap_quota_ipw <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                             survey_df = quota_sample_survey, 
+                                                                             weight_col = "weight_ipw",
+                                                                             weight_targets = weight_targets_ipw,
+                                                                             weight_type = "ipw", 
+                                                                             bootstrap = n_bootstrap_samples) 
+
+## Zone de sante - Uncertainty Intervals
+cdr_uncertainty_quota_ipw <- cdr_bootstrap_quota_ipw %>% 
+  group_by(type, weights) %>% 
+  summarize(death_rate_lower = quantile(death_rate, 0.025),
+            death_rate_upper = quantile(death_rate, 0.975)) 
+
+## perform join 
+cdr_point_uncertainty_quota_ipw <- inner_join(cdr_point_quota_ipw, cdr_uncertainty_quota_ipw, by = c("type", "weights")) %>% 
+  mutate(survey = "quota") %>% 
+  mutate(weights = case_when(
+    weights == "poststrat" ~ "ipw",
+    TRUE ~ weights))
+
+```
+
+## quota pooled - poststrat 
+
+```{r}
+## Estimate point estimates - poststratification weights 
+cdr_point_quota_poststrat <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                  survey_df = quota_sample_survey,
+                                                                  weight_col = "weight_poststrat")
+
+## bootstrap 
+cdr_boostrap_quota_poststrat <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                   survey_df = quota_sample_survey,
+                                                                   bootstrap = n_bootstrap_samples,
+                                                                   weight_col = "weight_poststrat",
+                                                                   weight_type = "poststrat",
+                                                                   weight_targets = weighting_targets_poststrat)
+
+## Zone de sante - Uncertainty Intervals
+cdr_uncertainty_quota_poststrat <- cdr_boostrap_quota_poststrat %>% 
+  group_by(type, weights) %>% 
+  summarize(death_rate_lower = quantile(death_rate, 0.025),
+            death_rate_upper = quantile(death_rate, 0.975)) 
+
+## perform join 
+cdr_point_uncertainty_quota_poststrat <- inner_join(cdr_point_quota_poststrat, cdr_uncertainty_quota_poststrat, by = c("type", "weights")) %>% 
+  mutate(survey = "quota")
+```
+
+## quota X health zone - ipw 
+
+```{r}
+## estimate point estimates 
+cdr_point_quota_health_zones <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                  survey_df = quota_sample_survey,
+                                                                  weight_col = "weight_ipw",
+                                                                  subpopulation = "health_zone",
+                                                                  bootstrap = NA)
+
+cdr_bootstrap_quota_health_zones <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                     survey_df = quota_sample_survey,
+                                                                     weight_col = "weight_ipw",
+                                                                     subpopulation = "health_zone", 
+                                                                     weight_targets = weight_targets_ipw,
+                                                                     weight_type = "ipw",
+                                                                     bootstrap = n_bootstrap_samples)
+
+## Health zone - Uncertainty Intervals
+cdr_uncertainty_quota_health_zones <- cdr_bootstrap_quota_health_zones %>% 
+  group_by(health_zone, type, weights) %>% 
+  summarize(death_rate_lower = quantile(death_rate, 0.025),
+            death_rate_upper = quantile(death_rate, 0.975)) 
+
+## perform join 
+cdr_point_uncertainty_quota_health_zones <- inner_join(cdr_point_quota_health_zones, cdr_uncertainty_quota_health_zones, by = c("type", "health_zone", "weights")) %>% 
+  mutate(survey = "quota")
+```
+
+```{r}
+## estimate point estimates 
+cdr_point_quota_monthly <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                survey_df = quota_sample_survey,
+                                                                weight_col = "weight_ipw",
+                                                                bootstrap = NA,
+                                                                monthly = T)
+
+## cdr monthly boostrap estimates 
+cdr_bootstrap_quota_monthly <- networksurvival::compute_cdr_comprehensive(death_df = quota_sample_deaths,
+                                                                    survey_df = quota_sample_survey,
+                                                                    weight_col = "weight_ipw",
+                                                                    weight_targets = weight_targets_ipw,
+                                                                    weight_type = "ipw",
+                                                                    bootstrap = n_bootstrap_samples,
+                                                                    monthly = T)
+
+## calculate uncertainty  
+cdr_uncertainty_quota_monthly <- cdr_bootstrap_quota_monthly %>% 
+  group_by(month, type, weights) %>% 
+  summarize(death_rate_lower = quantile(death_rate, 0.025),
+            death_rate_upper = quantile(death_rate, 0.975))
+
+## join together point and uncertainty estimate 
+cdr_point_uncertainty_quota_monthly <- inner_join(cdr_point_quota_monthly, cdr_uncertainty_quota_monthly, by = c("type", "month", "weights")) %>% 
+  mutate(survey = "quota")
+```
+
+
+```{r}
+## bind rows together 
+cdr_estimates <- bind_rows(cdr_point_uncertainty_probability, cdr_point_uncertainty_probability_health_zones, cdr_point_uncertainty_quota_ipw, cdr_point_uncertainty_quota_poststrat, cdr_point_uncertainty_quota_health_zones, cdr_point_uncertainty_quota_monthly) %>% 
+  mutate(health_zone = coalesce(health_zone, "pooled"),
+         month = coalesce(as.character(month), "pooled"))
+
+write_csv(cdr_estimates, here("out", "cdr_estimates.csv"))
+```
+

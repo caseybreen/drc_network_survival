@@ -1,0 +1,398 @@
+---
+title: "Test survey order effects"
+author: Casey Breen
+---
+
+Summary: Generate plots 
+
+```{r}
+## library packages 
+library(here)
+source(here("code", "helpers.R"))
+```
+
+
+
+```{r}
+## read in quota sample
+quota_sample_survey <- read_csv(here("data", "data_clean", "quota_sample_survey.csv")) 
+quota_sample_survey <- quota_sample_survey
+
+## read in hh sample 
+probability_sample_survey <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv")) 
+```
+
+
+```{r}
+quota_sample_survey <-  quota_sample_survey %>% 
+  mutate(
+    a_total_kin = a_male_child_total + a_female_child_total +
+                  a_male_grandchild_total + a_female_grandchild_total +
+                  a_sisters_total + a_brothers_total +
+                  a_male_cousins_total + a_female_cousins_total +
+                  a_parents_total + a_aunts_total +
+                  a_uncles_total + a_grandfathers_total + a_grandmothers_total,
+                  
+    b_total_kin = b_male_child_total + b_female_child_total +
+                  b_male_grandchild_total + b_female_grandchild_total +
+                  b_sisters_total + b_brothers_total +
+                  b_male_cousins_total + b_female_cousins_total +
+                  b_parents_total + b_aunts_total +
+                  b_uncles_total + b_grandfathers_total + b_grandmothers_total) %>% 
+  mutate(a_num_deaths_neighbours = a_num_deaths_hh_neighbours - a_hh_deaths, 
+         b_num_deaths_neighbours = b_num_deaths_hh_neighbours - b_hh_deaths)
+
+
+probability_sample_survey <-  probability_sample_survey %>% 
+  mutate(
+    a_total_kin = a_male_child_total + a_female_child_total +
+                  a_male_grandchild_total + a_female_grandchild_total +
+                  a_sisters_total + a_brothers_total +
+                  a_male_cousins_total + a_female_cousins_total +
+                  a_parents_total + a_aunts_total +
+                  a_uncles_total + a_grandfathers_total + a_grandmothers_total,
+                  
+    b_total_kin = b_male_child_total + b_female_child_total +
+                  b_male_grandchild_total + b_female_grandchild_total +
+                  b_sisters_total + b_brothers_total +
+                  b_male_cousins_total + b_female_cousins_total +
+                  b_parents_total + b_aunts_total +
+                  b_uncles_total + b_grandfathers_total + b_grandmothers_total)
+
+
+probability_sample_survey <-  probability_sample_survey %>% 
+  mutate(
+    a_deaths_kin = a_male_child_deaths + a_female_child_deaths +
+                  a_male_grandchild_deaths + a_female_grandchild_deaths +
+                  a_sisters_deaths + a_brothers_deaths +
+                  a_male_cousins_deaths + a_female_cousins_deaths +
+                  a_mother_deaths + a_father_deaths + a_aunts_deaths +
+                  a_uncles_deaths + a_grandfathers_deaths + a_grandmothers_deaths,
+                  
+    b_deaths_kin = b_male_child_deaths + b_female_child_deaths +
+                  b_male_grandchild_deaths + b_female_grandchild_deaths +
+                  b_sisters_deaths + b_brothers_deaths +
+                  b_male_cousins_deaths + b_female_cousins_deaths +
+                  b_mother_deaths + b_father_deaths + b_aunts_deaths +
+                  b_uncles_deaths + b_grandfathers_deaths + b_grandmothers_deaths)
+```
+
+
+
+
+```{r}
+# Define the number of bootstrap iterations
+n_bootstrap <- 1000
+
+# Perform bootstrap sampling and calculate the means
+bootstrap_df <- replicate(n_bootstrap, {
+  # Resample the data with replacement
+  sample_data <- sample_frac(quota_sample_survey, replace = TRUE)
+  
+  # Calculate the means for the resampled data
+  sample_sums <- sample_data %>%
+    summarize(
+      a_kin_deaths = mean(a_num_deaths_kin, na.rm = TRUE),
+      b_kin_deaths = mean(b_num_deaths_kin, na.rm = TRUE),
+      a_hh_deaths = mean(a_hh_deaths, na.rm = TRUE),
+      b_hh_deaths = mean(b_hh_deaths, na.rm = TRUE),
+      a_neighbor_deaths = mean(a_num_deaths_neighbours, na.rm = TRUE), 
+      b_neighbor_deaths = mean(b_num_deaths_neighbours, na.rm = TRUE)
+    )
+  
+  # Return the summarized data frame
+  return(sample_sums)
+}, simplify = FALSE) %>% bind_rows()
+
+# Calculate the means and standard deviations from the bootstrap results for each type
+summary_results <- bootstrap_df %>%
+  summarize(
+    a_kin_deaths_mean = mean(a_kin_deaths),
+    a_kin_deaths_sd = sd(a_kin_deaths),
+    b_kin_deaths_mean = mean(b_kin_deaths),
+    b_kin_deaths_sd = sd(b_kin_deaths),
+    a_hh_deaths_mean = mean(a_hh_deaths),
+    a_hh_deaths_sd = sd(a_hh_deaths),
+    b_hh_deaths_mean = mean(b_hh_deaths),
+    b_hh_deaths_sd = sd(b_hh_deaths),
+    a_neighbor_deaths_mean = mean(a_neighbor_deaths),
+    a_neighbor_deaths_sd = sd(a_neighbor_deaths),
+    b_neighbor_deaths_mean = mean(b_neighbor_deaths),
+    b_neighbor_deaths_sd = sd(b_neighbor_deaths)
+  )
+
+# Calculate the real means from the original data
+real_sums <- quota_sample_survey %>%
+  summarize(
+    a_kin_sum_mean = mean(a_num_deaths_kin, na.rm = TRUE),
+    b_kin_sum_mean = mean(b_num_deaths_kin, na.rm = TRUE),
+    a_hh_sum_mean = mean(a_hh_deaths, na.rm = TRUE),
+    b_hh_sum_mean = mean(b_hh_deaths, na.rm = TRUE),
+    a_neighbor_sum_mean = mean(a_num_deaths_neighbours, na.rm = TRUE),
+    b_neighbor_sum_mean = mean(b_num_deaths_neighbours, na.rm = TRUE)
+  )
+
+# Convert summary results to a data frame suitable for plotting for each type
+plot_data <- tibble::tibble(
+  type = rep(c("Kin", "Household", "Neighbors"), each = 2),  
+  order = rep(c("First", "Second"), times = 3),             
+  mean = c(real_sums$a_kin_sum_mean, real_sums$b_kin_sum_mean,
+           real_sums$a_hh_sum_mean, real_sums$b_hh_sum_mean,
+           real_sums$a_neighbor_sum_mean, real_sums$b_neighbor_sum_mean),
+  sd = c(summary_results$a_kin_deaths_sd, summary_results$b_kin_deaths_sd,
+         summary_results$a_hh_deaths_sd, summary_results$b_hh_deaths_sd,
+         summary_results$a_neighbor_deaths_sd, summary_results$b_neighbor_deaths_sd)
+)
+
+# Plot means with error bars representing standard deviations for each type
+survey_order_effects_plot_part1 <- plot_data %>% 
+  ggplot(aes(x = type, y = mean, ymin = mean - 1.96 * sd, ymax = mean + 1.96 * sd, color = order)) +
+  geom_pointrange(position = position_dodge(width = 0.2), fill = "white", shape = 21, fatten = 5) +  
+  labs(
+    title = "",
+    y = "Mean deaths per interview",
+    x = "",
+    color = "Survey Module Order"
+  ) +
+  ggsci::scale_color_lancet() +  # Apply Lancet color scale
+  ylim(0, .15) +  # Set y-axis limits
+  theme_cowplot() +  # Apply cowplot theme
+  theme(legend.position =  "none")
+
+
+#########################
+# Plot round 2 
+##########################
+
+# Perform bootstrap sampling and calculate the sums
+bootstrap_df <- replicate(n_bootstrap, {
+  # Resample the data with replacement
+  sample_data <- sample_frac(quota_sample_survey, replace = TRUE)
+  
+  # Calculate the means for the resampled data
+  sample_data %>%
+    summarize(
+      a_kin_sum = mean(a_total_kin, na.rm = TRUE),
+      b_kin_sum = mean(b_total_kin, na.rm = TRUE),
+      a_hh_sum = mean(a_sum_neighbours, na.rm = TRUE),
+      b_hh_sum = mean(b_sum_neighbours, na.rm = TRUE),
+      a_household_sum = mean(a_tot_hh, na.rm = TRUE),
+      b_household_sum = mean(b_tot_hh, na.rm = TRUE)
+    )
+}, simplify = FALSE) %>% bind_rows()
+
+# Calculate the means and standard deviations from the bootstrap results
+summary_results <- bootstrap_df %>%
+  summarize(across(ends_with("sum"), list(mean = mean, sd = sd)))
+
+# Calculate the real means from the original data
+real_sums <- quota_sample_survey %>%
+  summarize(
+    a_kin_sum_mean = mean(a_total_kin, na.rm = TRUE),
+    b_kin_sum_mean = mean(b_total_kin, na.rm = TRUE),
+    a_hh_sum_mean = mean(a_sum_neighbours, na.rm = TRUE),
+    b_hh_sum_mean = mean(b_sum_neighbours, na.rm = TRUE),
+    a_household_sum_mean = mean(a_tot_hh, na.rm = TRUE),
+    b_household_sum_mean = mean(b_tot_hh, na.rm = TRUE)
+  )
+
+# Convert summary results to a data frame suitable for plotting
+plot_data_size <- tibble::tibble(
+  type = rep(c("Kin", "Neighbors", "Household"), each = 2),  # Define types
+  order = rep(c("First", "Second"), times = 3),                    # Define groups
+  mean = c(real_sums$a_kin_sum_mean, real_sums$b_kin_sum_mean,
+           real_sums$a_hh_sum_mean, real_sums$b_hh_sum_mean,
+           real_sums$a_household_sum_mean, real_sums$b_household_sum_mean),
+  sd = c(summary_results$a_kin_sum_sd, summary_results$b_kin_sum_sd,
+         summary_results$a_hh_sum_sd, summary_results$b_hh_sum_sd,
+         summary_results$a_household_sum_sd, summary_results$b_household_sum_sd)
+)
+
+# Plot means with error bars representing standard deviations
+survey_order_effects_plot_part2 <- plot_data_size %>% 
+  ggplot(aes(x = type, y = mean, ymin = mean - 1.96 * sd, ymax = mean + 1.96 * sd, color = order)) +
+  geom_pointrange(position = position_dodge(width = 0.2), fill = "white", shape = 21, fatten = 5) +    labs(
+    title = "",
+    y = "Mean network size",
+    x = "",
+    color = "Survey Module Order"
+  ) +
+  ggsci::scale_color_lancet() +  # Apply Lancet color scale
+  theme_cowplot() +  # Apply cowplot theme
+  theme(legend.position = "bottom") + 
+  ylim(0, 31)
+
+```
+
+
+## Probability sample 
+
+```{r}
+# Define the number of bootstrap iterations
+n_bootstrap <- 1000
+
+# Perform bootstrap sampling and calculate the means
+bootstrap_df <- replicate(n_bootstrap, {
+  # Resample the data with replacement
+  sample_data <- sample_frac(probability_sample_survey, replace = TRUE)
+  
+  # Calculate the means for the resampled data
+  sample_sums <- sample_data %>%
+    summarize(
+      a_kin_deaths = mean(a_deaths_kin, na.rm = TRUE),
+      b_kin_deaths = mean(b_deaths_kin, na.rm = TRUE),
+      a_neighbor_deaths = mean(a_sum_neighbours_deaths, na.rm = TRUE), 
+      b_neighbor_deaths = mean(b_sum_neighbours_deaths, na.rm = TRUE)
+    )
+  
+  # Return the summarized data frame
+  return(sample_sums)
+}, simplify = FALSE) %>% bind_rows()
+
+# Calculate the means and standard deviations from the bootstrap results for each type
+summary_results <- bootstrap_df %>%
+  summarize(
+    a_kin_deaths_mean = mean(a_kin_deaths),
+    a_kin_deaths_sd = sd(a_kin_deaths),
+    b_kin_deaths_mean = mean(b_kin_deaths),
+    b_kin_deaths_sd = sd(b_kin_deaths),
+    a_neighbor_deaths_mean = mean(a_neighbor_deaths),
+    a_neighbor_deaths_sd = sd(b_neighbor_deaths),
+    b_neighbor_deaths_mean = mean(b_neighbor_deaths),
+    b_neighbor_deaths_sd = sd(b_neighbor_deaths)
+  )
+
+# Calculate the real means from the original data
+real_sums <- probability_sample_survey %>%
+  summarize(
+    a_kin_sum_mean = mean(a_deaths_kin, na.rm = TRUE),
+    b_kin_sum_mean = mean(b_deaths_kin, na.rm = TRUE),
+    a_neighbor_sum_mean = mean(a_sum_neighbours_deaths, na.rm = TRUE),
+    b_neighbor_sum_mean = mean(b_sum_neighbours_deaths, na.rm = TRUE)
+  )
+
+# Convert summary results to a data frame suitable for plotting for each type
+plot_data <- tibble::tibble(
+  type = rep(c("Kin", "Neighbors"), each = 2),  
+  order = rep(c("First", "Second"), times = 2),             
+  mean = c(real_sums$a_kin_sum_mean, real_sums$b_kin_sum_mean,
+           real_sums$a_neighbor_sum_mean, real_sums$b_neighbor_sum_mean),
+  sd = c(summary_results$a_kin_deaths_sd, summary_results$b_kin_deaths_sd,
+         summary_results$a_neighbor_deaths_sd, summary_results$b_neighbor_deaths_sd)
+)
+
+# Plot means with error bars representing standard deviations for each type
+survey_order_effects_plot_part1_probability <- plot_data %>% 
+  ggplot(aes(x = type, y = mean, ymin = mean - 1.96 * sd, ymax = mean + 1.96 * sd, color = order)) +
+  geom_pointrange(position = position_dodge(width = 0.2), fill = "white", shape = 21, fatten = 5) +  
+  labs(
+    title = "",
+    y = "Mean deaths per interview",
+    x = "",
+    color = "Survey Module Order"
+  ) +
+  ggsci::scale_color_lancet() +  # Apply Lancet color scale
+  ylim(0, NA) +  # Set y-axis limits
+  theme_cowplot() +  # Apply cowplot theme
+  theme(legend.position =  "none")
+
+#########################
+# Plot round 2 
+##########################
+
+# Perform bootstrap sampling and calculate the sums
+bootstrap_df <- replicate(n_bootstrap, {
+  # Resample the data with replacement
+  sample_data <- sample_frac(probability_sample_survey, replace = TRUE)
+  
+  # Calculate the means for the resampled data
+  sample_data %>%
+    summarize(
+      a_kin_sum = mean(a_total_kin, na.rm = TRUE),
+      b_kin_sum = mean(b_total_kin, na.rm = TRUE),
+      a_neighbor_sum = mean(a_sum_neighbours, na.rm = TRUE),
+      b_neighbor_sum = mean(b_sum_neighbours, na.rm = TRUE)
+    )
+}, simplify = FALSE) %>% bind_rows()
+
+# Calculate the means and standard deviations from the bootstrap results
+summary_results <- bootstrap_df %>%
+  summarize(
+    a_kin_sum_sd = sd(a_kin_sum),
+    b_kin_sum_sd = sd(b_kin_sum),
+    a_neighbor_sum_sd = sd(a_neighbor_sum),
+    b_neighbor_sum_sd = sd(b_neighbor_sum)
+  )
+
+# Calculate the real means from the original data
+real_sums <- probability_sample_survey %>%
+  summarize(
+    a_kin_sum_mean = mean(a_total_kin, na.rm = TRUE),
+    b_kin_sum_mean = mean(b_total_kin, na.rm = TRUE),
+    a_neighbor_sum_mean = mean(a_sum_neighbours, na.rm = TRUE),
+    b_neighbor_sum_mean = mean(b_sum_neighbours, na.rm = TRUE)
+  )
+
+# Convert summary results to a data frame suitable for plotting
+plot_data_size <- tibble::tibble(
+  type = rep(c("Kin", "Neighbors"), each = 2),  # Define types
+  order = rep(c("First", "Second"), times = 2), # Define groups
+  mean = c(real_sums$a_kin_sum_mean, real_sums$b_kin_sum_mean,
+           real_sums$a_neighbor_sum_mean, real_sums$b_neighbor_sum_mean),
+  sd = c(summary_results$a_kin_sum_sd, summary_results$b_kin_sum_sd,
+         summary_results$a_neighbor_sum_sd, summary_results$b_neighbor_sum_sd)
+)
+
+# Plot means with error bars representing standard deviations
+survey_order_effects_plot_part2_probability <- plot_data_size %>% 
+  ggplot(aes(x = type, y = mean, ymin = mean - 1.96 * sd, ymax = mean + 1.96 * sd, color = order)) +
+  geom_pointrange(position = position_dodge(width = 0.2), fill = "white", shape = 21, fatten = 5) +  
+  labs(
+    title = "",
+    y = "Mean network size",
+    x = "",
+    color = "Survey Module Order"
+  ) +
+  ggsci::scale_color_lancet() +  # Apply Lancet color scale
+  theme_cowplot() +  # Apply cowplot theme
+  theme(legend.position = "bottom") + 
+  ylim(0, 31)
+```
+
+
+
+```{r}
+# Extract the legend from one of the plots
+legend <- get_legend(
+  survey_order_effects_plot_part1 + 
+    theme(legend.position = "bottom")  # Ensure the legend is at the bottom
+)
+
+# Combine the plots into a grid without individual legends
+combined_plot <- plot_grid(
+  survey_order_effects_plot_part1 + theme(legend.position = "none") + ggtitle("Quota survey"),
+  survey_order_effects_plot_part1_probability + theme(legend.position = "none") + ggtitle("Probability survey"),
+  survey_order_effects_plot_part2 + theme(legend.position = "none") ,
+  survey_order_effects_plot_part2_probability + theme(legend.position = "none"),
+  nrow = 2,
+  labels = "AUTO"
+)
+
+# Add the extracted legend to the bottom of the combined plot
+final_plot <- plot_grid(
+  combined_plot, legend, 
+  ncol = 1,  # Arrange in one column to place the legend below the plots
+  rel_heights = c(1, 0.1)  # Adjust the relative height for the legend
+)
+
+# Save the plot
+ggsave(final_plot, filename = here("figures", "survey_order_effects_plot.png"), width = 8, height = 7)
+```
+
+
+```{r}
+probability_sample_survey$a_num_deaths_kin
+```
+```
+
+

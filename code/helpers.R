@@ -25,6 +25,7 @@ library(ggthemes)
 library(xtable)
 library(srvyr)
 library(networksurvival)
+library(kableExtra)
 
 ## white background instead of transparent
 ggsave <- function(filename, plot = last_plot(), ..., dpi = 300, bg = 'white') {

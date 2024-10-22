@@ -57,7 +57,7 @@ tanganyika_prov_map <- ggplot() +
   geom_sf(data = filter(tanganyika_aires_data, color_group == "Other"), aes(fill = color_group), alpha = 0.2, color = "black", linetype = "blank", size = 0.2) +
   geom_sf_text(data = filter(centroids, color_group != "Other"), aes(label = color_group), check_overlap = TRUE, size = 6 * 1.2) +
   geom_sf(data = kalemie_town_df, color = "black", shape = 18, size = 6) +  # Add the star
-  geom_sf_text(data = kalemie_town_df, aes(label = "Kalemie Town"), vjust = -.45, hjust = -.09, size = 7) +  # Add the label
+  geom_sf_text(data = kalemie_town_df, aes(label = "Kalemie City"), vjust = -.45, hjust = -.09, size = 7) +  # Add the label
   scale_fill_manual(values = my_palette) +
   coord_sf(datum = NA) +
   guides(fill = FALSE) +
@@ -67,47 +67,6 @@ tanganyika_prov_map <- ggplot() +
 ggsave(plot = tanganyika_prov_map, filename = here("figures", "tanganyika_map.png"), width = 10, height = 7)
 ```
 
-```{r}
-# Filter data for the specific province
-tanganyika_aires_data <- aires_data %>% 
-  filter(Province == "Tanganyika")
-
-# Create a new variable to identify whether each ZS should be colored or grayed out
-tanganyika_aires_data <- tanganyika_aires_data %>% 
-  mutate(color_group = if_else(ZS %in% c("Kalemie", "Nyemba"), as.character(ZS), "Other"))
-
-# Group by the new variable and create a union of geometries within each group
-tanganyika_aires_data_grouped <- tanganyika_aires_data %>% 
-  group_by(color_group) %>% 
-  summarise(geometry = st_union(geometry), .groups = "drop")
-
-# Ensure the geometry is valid and compute the centroids
-tanganyika_aires_data_grouped <- st_make_valid(tanganyika_aires_data_grouped)
-centroids <- st_centroid(tanganyika_aires_data_grouped)
-
-# Create a manual color palette: Specify your chosen colors here
-my_palette <- c("Kalemie" = viridis_pal()(3)[1],
-                "Nyemba" = viridis_pal()(3)[3],
-                "Other" = "grey50")
-
-
-# Plotting
-tanganyika_prov_map <- ggplot() +
-  geom_sf(data = filter(tanganyika_aires_data, color_group != "Other"), aes(fill = color_group), alpha = 0.5, color = "black", linetype = "dotted", size = 0.2) +
-  geom_sf(data = filter(tanganyika_aires_data, color_group == "Other"), aes(fill = color_group), alpha = 0.5, linetype = 0, color = "black", linetype = "dotted", size = 0.2) +
-  geom_sf_text(data = filter(centroids, color_group != "Other"), aes(label = color_group), check_overlap = TRUE, size = 6 * 1.2) +
-  geom_sf(data = kalemie_town_df, color = "black", shape = 18, size = 6) +  # Add the star
-  geom_sf_text(data = kalemie_town_df, aes(label = "Kalemie Town"), vjust = -.45, hjust = -.09, size = 5) +  # Add the label
-  scale_fill_manual(values = my_palette) +
-  coord_sf(datum = NA) +
-  guides(fill = FALSE) +
-  theme_map() +
-  labs(title = "Tanganyika Province, focal health zones")
-
-# Save the plot
-ggsave(plot = tanganyika_prov_map, filename = here("figures", "tanganyika_map_no_nyunzu.png"), width = 10, height = 7)
-
-```
 
 ```{r}
 # Assuming your data frame is named 'your_data_frame'
@@ -166,10 +125,11 @@ tanganyika_aires_data_grouped <- tanganyika_aires_data_clean %>%
 tanganyika_aires_data_grouped <- st_make_valid(tanganyika_aires_data_grouped)
 centroids <- st_centroid(tanganyika_aires_data_grouped)
 
+
 # Create a manual color palette: Specify your chosen colors here
-my_palette <- c("Kalemie" = "#FFDB58",
-                "Nyemba" = "#FFDB58",
-                "Nyunzu" = "#FFDB58",
+my_palette <- c("Kalemie" = viridis_pal()(3)[1],
+                "Nyemba" = viridis_pal()(3)[2],
+                "Nyunzu" = viridis_pal()(3)[3],
                 "Fizi" = "darkred", 
                 "Other" = "grey50")
 
@@ -188,7 +148,7 @@ tanganyika_prov_map <- ggplot() +
   geom_sf(data = filter(tanganyika_aires_data, color_group == "Other"), aes(fill = color_group), alpha = 0.2, color = "black", linetype = "blank", size = 0.2) +
   geom_sf_text(data = filter(centroids, color_group != "Other"), aes(label = color_group), check_overlap = TRUE, size = 6 * 1.2) +
   geom_sf(data = kalemie_town_df, color = "black", shape = 18, size = 6) +  # Add the star
-  geom_sf_text(data = kalemie_town_df, aes(label = "Kalemie Town"), vjust = -.45, hjust = -.09, size = 6) +  # Add the label
+  geom_sf_text(data = kalemie_town_df, aes(label = "Kalemie City"), vjust = -.45, hjust = -.09, size = 6) +  # Add the label
   scale_fill_manual(values = my_palette) +
   coord_sf(datum = NA) +
   guides(fill = FALSE) +
