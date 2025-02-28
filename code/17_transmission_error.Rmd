@@ -1,0 +1,51 @@
+---
+title: "Transmission error check"
+author: Casey Breen
+---
+
+Summary: Some notes and simple calculations on transmission bias and 
+
+```{r}
+library(tidyverse)
+library(here)
+
+cdr_estimates <- read_csv(here("out", "cdr_estimates.csv"))
+```
+## Transmission error: 
+
+```{r}
+cdr_estimates %>% 
+  filter(survey == "probability") %>% 
+  filter(type == "neighbor" & health_zone == "pooled")
+
+
+cdr_estimates %>% 
+  filter(survey == "probability") %>% 
+  filter(type == "household" & health_zone == "pooled")
+```
+
+First, we want to know how much transmission error there would need to be. Basically, for there to be transmission error, we would need false negative reports. So what proportion of deaths are respondents now aware of in there 
+
+The death rate reported from the probability survey is 0.813, while the death rate reported from neighbors is 0.397. If we assume the probability survey is true, how many false negative reports -- where a death occurred in the neighbors household but the respondent didn't know -- would this value be?
+
+```{r}
+## Transmission error 
+1 - (0.3974465/0.8130978)
+```
+
+Basically, we would need to be false negatives of 51%. This seems implausible given that in our qualitative research, respondents seemed very confident that they could accurately report deaths that occured in their neighbors house. 
+
+```{r}
+## False positive rate 
+0.8130978/0.3974465
+```
+
+It's also possible that people are strategically over-reporting and that the network estimate is correct. How much strategic over-reporting, false positives, would we need? Basically, for every real death, we would need to report 1.05 false deaths. In other words, only 48\% of deaths reported actually occurred. This would actually be *lower* than the 28\% of Jarrett et al. paper. This in our assessment is more likely than respondents missing out on reporting 52\% of deaths in a respondents network. 
+
+```{r}
+## False positive rate 
+0.8130978/0.3974465
+```
+
+
+

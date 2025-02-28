@@ -105,3 +105,52 @@ write_csv(survey_df_weighted, here("data", "data_clean", "quota_sample_survey.cs
 ```
 
 
+
+```{r}
+# Bind rows with weighting targets, for all health zones
+weighting_df <- survey_df %>%
+  select(health_zone, "hh_size_categorical", "hh_size_categorical_crude", "cooking_fuel",
+         "material_house", "modern_fuel_type", "manufactured_material_house", "radio", "bed", "_id", "age_class", "gender", "age_u5_count", "age_5_18_count", "age_18plus_count") %>%
+  mutate(inclusion = 1) %>%
+  bind_rows(weighting_targets_micro %>%
+              mutate(inclusion = 0))
+
+# Initialize an empty dataframe to store results
+all_zones_weighted <- data.frame()
+
+# Unique health zones
+health_zones <- unique(survey_df$health_zone)
+
+model_results <- list()
+# Loop through each health zone
+for (zone in health_zones) {
+
+  zone_df <- weighting_df %>% filter(health_zone == zone)
+
+  # Step 1: Fit a logistic regression model for the current zone
+  selection_model <- glm(inclusion ~ gender + age_class + hh_size_categorical + radio + bed + 
+                           manufactured_material_house + modern_fuel_type + age_u5_count + 
+                           age_5_18_count + age_18plus_count, 
+                         data = zone_df, family = "binomial")
+
+  # Store the model and extract coefficients
+  model_results[[zone]] <- selection_model
+}
+
+
+
+# Generate LaTeX regression table
+modelsummary(
+  model_results,
+  exponentiate = TRUE,  # Converts log coefficients to odds ratios
+  output = here("figures", "table.tex"),  # Save as LaTeX file
+  stars = TRUE,  # Add significance stars
+  gof_omit = "Log.Lik",
+  latex_options = "booktabs",  # Forces tabular instead of talltblr
+)  # Remove unnecessary goodness-of-fit stat)
+
+
+# etable::(model_results, tex = T, file = here("figures/table_reg_coefficients"), replace = T)
+
+```
+

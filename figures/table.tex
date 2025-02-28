@@ -1,0 +1,60 @@
+\begin{table}
+\centering
+\begin{talltblr}[         %% tabularray outer open
+entry=none,label=none,
+note{}={+ p \num{< 0.1}, * p \num{< 0.05}, ** p \num{< 0.01}, *** p \num{< 0.001}},
+]                     %% tabularray outer close
+{                     %% tabularray inner open
+colspec={Q[]Q[]Q[]Q[]},
+column{2,3,4}={}{halign=c,},
+column{1}={}{halign=l,},
+hline{40}={1,2,3,4}{solid, black, 0.05em},
+}                     %% tabularray inner close
+\toprule
+& Kalemie & Nyemba & Nyunzu \\ \midrule %% TinyTableHeader
+(Intercept) & \num{0.044}*** & \num{0.016}*** & \num{0.004}*** \\
+& (\num{0.012}) & (\num{0.005}) & (\num{0.002}) \\
+genderm & \num{1.166}+ & \num{1.140} & \num{0.894} \\
+& (\num{0.108}) & (\num{0.106}) & (\num{0.116}) \\
+age\_class[25,35) & \num{3.077}*** & \num{3.473}*** & \num{5.341}*** \\
+& (\num{0.445}) & (\num{0.536}) & (\num{1.312}) \\
+age\_class[35,45) & \num{5.882}*** & \num{5.009}*** & \num{7.884}*** \\
+& (\num{0.889}) & (\num{0.791}) & (\num{1.980}) \\
+age\_class[45,55) & \num{5.112}*** & \num{4.405}*** & \num{12.363}*** \\
+& (\num{0.860}) & (\num{0.803}) & (\num{3.318}) \\
+age\_class[55,65) & \num{2.943}*** & \num{2.579}*** & \num{16.544}*** \\
+& (\num{0.618}) & (\num{0.617}) & (\num{5.279}) \\
+age\_class[65,100] & \num{2.018}* & \num{1.715} & \num{3.865}** \\
+& (\num{0.558}) & (\num{0.652}) & (\num{1.798}) \\
+hh\_size\_categorical[4,7) & \num{0.879} & \num{1.101} & \num{0.796} \\
+& (\num{0.197}) & (\num{0.256}) & (\num{0.273}) \\
+hh\_size\_categorical[7,10) & \num{0.718} & \num{1.076} & \num{0.810} \\
+& (\num{0.181}) & (\num{0.283}) & (\num{0.309}) \\
+hh\_size\_categorical10+ & \num{0.194}*** & \num{0.444}** & \num{0.192}*** \\
+& (\num{0.056}) & (\num{0.135}) & (\num{0.080}) \\
+radioyes & \num{0.645}*** & \num{1.356}** & \num{2.411}*** \\
+& (\num{0.067}) & (\num{0.136}) & (\num{0.354}) \\
+bedyes & \num{1.258}+ & \num{3.790}*** & \num{3.300}*** \\
+& (\num{0.150}) & (\num{0.440}) & (\num{0.483}) \\
+manufactured\_material\_house & \num{4.189}*** & \num{2.325}*** & \num{6.918}*** \\
+& (\num{0.425}) & (\num{0.259}) & (\num{0.946}) \\
+modern\_fuel\_type & \num{0.821}+ & \num{0.484}*** & \num{4.129}*** \\
+& (\num{0.090}) & (\num{0.056}) & (\num{0.681}) \\
+age\_u5\_count1 & \num{1.674}*** & \num{2.314}*** & \num{2.095}*** \\
+& (\num{0.216}) & (\num{0.301}) & (\num{0.410}) \\
+age\_u5\_count2+ & \num{4.987}*** & \num{3.621}*** & \num{8.318}*** \\
+& (\num{0.646}) & (\num{0.474}) & (\num{1.643}) \\
+age\_5\_18\_count1 & \num{0.846} & \num{0.715}+ & \num{1.133} \\
+& (\num{0.161}) & (\num{0.143}) & (\num{0.333}) \\
+age\_5\_18\_count2+ & \num{0.900} & \num{1.227} & \num{1.787}* \\
+& (\num{0.165}) & (\num{0.241}) & (\num{0.485}) \\
+age\_18plus\_count2+ & \num{0.965} & \num{0.999} & \num{0.377}*** \\
+& (\num{0.217}) & (\num{0.249}) & (\num{0.110}) \\
+Num.Obs. & \num{3250} & \num{3087} & \num{3210} \\
+AIC & \num{2417.6} & \num{2232.4} & \num{1686.0} \\
+BIC & \num{2533.2} & \num{2347.1} & \num{1801.5} \\
+F &  & \num{27.796} & \num{34.671} \\
+RMSE & \num{0.38} & \num{0.39} & \num{0.28} \\
+\bottomrule
+\end{talltblr}
+\end{table}

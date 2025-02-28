@@ -1,0 +1,56 @@
+\begin{table}
+\centering
+\begin{talltblr}[         %% tabularray outer open
+caption={Logistic Regression Results by Health Zone},
+note{}={+ p \num{< 0.1}, * p \num{< 0.05}, ** p \num{< 0.01}, *** p \num{< 0.001}},
+]                     %% tabularray outer close
+{                     %% tabularray inner open
+colspec={Q[]Q[]Q[]Q[]},
+column{2,3,4}={}{halign=c,},
+column{1}={}{halign=l,},
+hline{38}={1,2,3,4}{solid, black, 0.05em},
+}                     %% tabularray inner close
+\toprule
+& Kalemie & Nyemba & Nyunzu \\ \midrule %% TinyTableHeader
+genderm & \num{0.154}+ & \num{0.131} & \num{-0.113} \\
+& (\num{0.093}) & (\num{0.093}) & (\num{0.130}) \\
+age_class[25,35) & \num{1.124}*** & \num{1.245}*** & \num{1.675}*** \\
+& (\num{0.144}) & (\num{0.154}) & (\num{0.246}) \\
+age_class[35,45) & \num{1.772}*** & \num{1.611}*** & \num{2.065}*** \\
+& (\num{0.151}) & (\num{0.158}) & (\num{0.251}) \\
+age_class[45,55) & \num{1.632}*** & \num{1.483}*** & \num{2.515}*** \\
+& (\num{0.168}) & (\num{0.182}) & (\num{0.268}) \\
+age_class[55,65) & \num{1.080}*** & \num{0.947}*** & \num{2.806}*** \\
+& (\num{0.210}) & (\num{0.239}) & (\num{0.319}) \\
+age_class[65,100] & \num{0.702}* & \num{0.540} & \num{1.352}** \\
+& (\num{0.276}) & (\num{0.380}) & (\num{0.465}) \\
+hh_size_categorical[4,7) & \num{-0.129} & \num{0.096} & \num{-0.228} \\
+& (\num{0.224}) & (\num{0.232}) & (\num{0.343}) \\
+hh_size_categorical[7,10) & \num{-0.332} & \num{0.073} & \num{-0.210} \\
+& (\num{0.252}) & (\num{0.263}) & (\num{0.381}) \\
+hh_size_categorical10+ & \num{-1.642}*** & \num{-0.811}** & \num{-1.648}*** \\
+& (\num{0.289}) & (\num{0.303}) & (\num{0.414}) \\
+radioyes & \num{-0.439}*** & \num{0.304}** & \num{0.880}*** \\
+& (\num{0.105}) & (\num{0.100}) & (\num{0.147}) \\
+bedyes & \num{0.229}+ & \num{1.332}*** & \num{1.194}*** \\
+& (\num{0.120}) & (\num{0.116}) & (\num{0.146}) \\
+manufactured_material_house & \num{1.432}*** & \num{0.844}*** & \num{1.934}*** \\
+& (\num{0.102}) & (\num{0.111}) & (\num{0.137}) \\
+modern_fuel_type & \num{-0.197}+ & \num{-0.726}*** & \num{1.418}*** \\
+& (\num{0.110}) & (\num{0.116}) & (\num{0.165}) \\
+age_u5_count1 & \num{0.515}*** & \num{0.839}*** & \num{0.740}*** \\
+& (\num{0.129}) & (\num{0.130}) & (\num{0.196}) \\
+age_u5_count2+ & \num{1.607}*** & \num{1.287}*** & \num{2.118}*** \\
+& (\num{0.130}) & (\num{0.131}) & (\num{0.197}) \\
+age_5_18_count1 & \num{-0.168} & \num{-0.336}+ & \num{0.125} \\
+& (\num{0.191}) & (\num{0.199}) & (\num{0.294}) \\
+age_5_18_count2+ & \num{-0.106} & \num{0.205} & \num{0.581}* \\
+& (\num{0.184}) & (\num{0.197}) & (\num{0.271}) \\
+age_18plus_count2+ & \num{-0.035} & \num{-0.001} & \num{-0.975}*** \\
+& (\num{0.224}) & (\num{0.249}) & (\num{0.292}) \\
+Num.Obs. & \num{3250} & \num{3087} & \num{3210} \\
+F &  & \num{27.796} & \num{34.671} \\
+RMSE & \num{0.38} & \num{0.39} & \num{0.28} \\
+\bottomrule
+\end{talltblr}
+\end{table}

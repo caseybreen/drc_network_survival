@@ -3,7 +3,7 @@
 ##########################
 
 ## set number of bootstrap samples
-n_bootstrap_samples <- 100
+n_bootstrap_samples <- 10000
 
 
 
@@ -26,6 +26,7 @@ library(xtable)
 library(srvyr)
 library(networksurvival)
 library(kableExtra)
+library(modelsummary)
 
 ## white background instead of transparent
 ggsave <- function(filename, plot = last_plot(), ..., dpi = 300, bg = 'white') {

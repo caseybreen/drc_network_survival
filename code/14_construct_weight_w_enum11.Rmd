@@ -5,8 +5,6 @@ author: "Casey Breen"
 
 Generate weights - estimation code 
 
-
-
 ```{r}
 ## library packages 
 library(here)

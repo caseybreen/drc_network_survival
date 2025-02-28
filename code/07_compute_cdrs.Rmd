@@ -95,7 +95,7 @@ probability_sample_deaths <- probability_sample_deaths %>%
 ## Probability Survey Estimates 
 
 ```{r}
-## £stimate point estimates 
+## Estimate point estimates 
 cdr_point_probability <- networksurvival::compute_cdr_comprehensive(death_df = probability_sample_deaths,
                                                                     survey_df = probability_sample_respondent,
                                                                     weight_col = "weight_poststrat",
@@ -120,6 +120,7 @@ cdr_point_uncertainty_probability <- inner_join(cdr_point_probability, cdr_uncer
   filter(weights == "unweighted") %>% 
   mutate(survey = "probability")
 ```
+
 
 ## probability health zones 
 
@@ -277,5 +278,14 @@ cdr_estimates <- bind_rows(cdr_point_uncertainty_probability, cdr_point_uncertai
          month = coalesce(as.character(month), "pooled"))
 
 write_csv(cdr_estimates, here("out", "cdr_estimates.csv"))
+```
+
+
+
+
+```{r}
+# summary(lm(num_deaths_hh ~ education_level + age_repondant + num_hh, data = probability_sample_respondent))
+# 
+# lm(death ~ educ_age_group, probability_sample_mortality_long)
 ```
 

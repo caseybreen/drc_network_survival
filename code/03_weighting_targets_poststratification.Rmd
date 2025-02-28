@@ -103,9 +103,14 @@ weighting_targets <- weighting_targets %>%
   )) %>% 
   filter(!is.na(age_class)) %>% 
   mutate(age_gender = paste0(gender, " | ", age_class))
-
-
 ```
+
+
+
+
+
+
+
 
 ## estimate weights for 18-25
 

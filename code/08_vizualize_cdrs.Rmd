@@ -5,8 +5,8 @@ author: Casey Breen
 
 Summary: Plot CDR estimates 
 
-
 ```{r}
+## load packages 
 library(here)
 source(here("code", "helpers.R"))
 
@@ -54,77 +54,11 @@ cdr_pooled_plot <- cdr_estimates %>%
 ggsave(plot = cdr_pooled_plot, filename = here("figures", "fig4_cdr_pooled_plot.png"), width = 6, height = 4)
 ```
 
-## quota survey - month 
-
-
-```{r}
-## visualize cdr point esitmates 
-cdr_monthly_plot <- cdr_estimates %>% 
-  filter(health_zone == "pooled" & month != "pooled" & survey == "quota" & type == "blended" & weights == "weight_ipw") %>% 
-  mutate(month = as_date(month)) %>% 
-  ggplot(aes(x = month, y = death_rate)) + 
-  geom_ribbon(aes(ymin = death_rate_lower, ymax = death_rate_upper), alpha = 0.1, color = "black", fill = "blue", position = position_dodge(0)) +
-    geom_line(linetype = "dashed", alpha = 0.3, color = "black") +
-  scale_shape_manual(values = c(21, 22, 23)) +
-  ggsci::scale_color_lancet() +
-  theme_cowplot() + 
-  ylim(0, 1) +
-  theme(legend.position = "bottom", legend.title = element_blank()) + 
-  labs(x = "Month of Death", y = "Crude Death Rate")
-
-
-ggsave(plot = cdr_monthly_plot, filename = here("figures", "cdr_monthly_plot.png"), width = 6, height = 4)
-```
-
-
-
-```{r}
-## visualize results 
-cdr_pooled_heath_zones_plot <- cdr_estimates %>% 
-  filter(health_zone != "pooled" & month == "pooled" & survey == "quota") %>% 
-  mutate(weights_full = case_when(
-    weights == "poststrat" ~ "IPW Weights",
-    weights == "unweighted" ~"Unweighted"
-  )) %>% 
-  ggplot(aes(x = health_zone, color = type, shape = type, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
-  geom_pointrange( position = position_dodge(.5), size = 1, fill = "white") +
-  scale_shape_manual(values = c(21, 22, 23, 24)) +
-  scale_color_viridis_d() +  
-  ylim(0, 2) + 
-  theme_cowplot() + 
-  theme(legend.position = "bottom", legend.title = element_blank()) + 
-  labs(x = "Health Zone", y = "Crude Death Rate \n (per 10,000 person days)") + 
-  facet_wrap(~weights)
-
-ggsave(plot = cdr_pooled_heath_zones_plot, filename = here("figures", "cdr_pooled_heath_zones_plot.png"), width = 9, height = 4)
-```
-
 
 
 ```{r}
 un_estimate <- 10 * 10/365 
 smart_survey <- 0.58
-
-## visualize results 
-cdr_network_comparisons <- cdr_estimates %>% 
-  filter(health_zone == "pooled" & month == "pooled") %>% 
-  filter(survey == "probability" | survey == "quota" & weights == "weight_ipw") %>% 
-  ggplot(aes(x = type, shape = survey, color = survey, y = death_rate, ymin = death_rate_lower, ymax = death_rate_upper)) + 
-  geom_pointrange( position = position_dodge(.25), size = 1, fill = "white") +
-  scale_shape_manual(values = c(21, 22)) +
-  ylim(0, 1) + 
-  theme_cowplot() + 
-  ggsci::scale_color_lancet() + 
-  theme(legend.position = "bottom", legend.title = element_blank()) + 
-    labs(x = "", y = "Crude Death Rate \n (per 10,000 person-days)") +
-  geom_hline(yintercept = un_estimate, linetype = "dashed", color = "grey")
-
-ggsave(plot = cdr_network_comparisons, filename = here("figures", "cdr_quota_prob_network_comparisons.png"), width = 8, height = 5)
-```
-
-
-
-```{r}
 household_wrong <- 32.68 * 10/365
 household_adjusted <- 9.2 * 10/365
 household_adjusted_lower <- 5.4 * 10/365
@@ -139,7 +73,6 @@ auxiliary_estimates <- tibble(
   death_rate_lower = c(1.019499, household_adjusted_upper, 0.98)
 )
 
-# Assuming 'un_estimate' is defined somewhere in your code as the UN estimate value.
 cdr_comparison_external <- cdr_estimates %>%
   filter(health_zone == "pooled" & month == "pooled") %>% 
   filter(type == "blended" | type == "household") %>% 

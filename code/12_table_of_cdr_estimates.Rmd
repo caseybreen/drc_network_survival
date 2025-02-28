@@ -1,8 +1,7 @@
 ---
 title: "Tabualar Results"
-output: html_notebook
+author: Casey Breen
 ---
-
 
 ```{r}
 library(here)
@@ -13,6 +12,11 @@ source(here("code", "helpers.R"))
 ```{r}
 ## read in estimates 
 cdr_estimates <- read_csv(here("out", "cdr_estimates.csv"))
+
+
+cdr_estimates %>% 
+  filter(type == "kin", weights == "unweighted") %>% 
+  filter(health_zone == "pooled")
 ```
 
 ```{r}
@@ -20,6 +24,7 @@ cdr_estimates <- read_csv(here("out", "cdr_estimates.csv"))
 table_df <- cdr_estimates %>% 
   select(survey, tie = type, health_zone, month, weights, death_rate, death_rate_lower, death_rate_upper) %>% 
   mutate(across(where(is.numeric), ~ round(.x, 2))) %>% 
+    distinct() %>% 
   mutate(weights = case_when(
     weights == "weight_poststrat" ~ "Poststrat",
     weights == "weight_ipw" ~ "IPW",
@@ -50,6 +55,41 @@ latex_table <- print(kable(table_df, format = "latex", booktabs = TRUE, longtabl
 
 
 writeLines(latex_table, here("figures", 'cdr_table.tex'))
+```
+
+
+
+
+
+```{r}
+cdr_network_over_time <- cdr_estimates %>% 
+  filter(weights == "weight_ipw") %>% 
+  filter(survey == "quota" & month != "pooled") %>% 
+  mutate(month = as.Date(month)) %>% 
+  ggplot(aes(x = month, 
+             y = death_rate, 
+             ymin = death_rate_lower, 
+             ymax = death_rate_upper,
+             color = type, 
+             shape = type)) +  # Add shape mapping here
+  geom_line(position = position_dodge2(10)) + 
+  geom_pointrange(fill = "white", size = 1, position = position_dodge2(10)) + 
+  ylim(0, 1) + 
+  theme_cowplot() + 
+  labs(x = "", 
+       y = "Crude Death Rate \n (per 10,000 person-days)",
+       color = "", 
+       shape = "") + 
+  scale_shape_manual(values = c("blended" = 21,  # Circle ◉
+                                "kin" = 22,      # Square ◼
+                                "neighbor" = 23)) +  # Diamond ◆
+  ggsci::scale_color_lancet() + 
+  theme(legend.position = "bottom")
+
+cdr_network_over_time  # Display the plot
+
+#
+ggsave(plot = cdr_network_over_time, filename = here("figures", "cdr_quota_over_time.png"), width = 8, height = 5)
 ```
 
 

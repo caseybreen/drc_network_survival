@@ -12,17 +12,16 @@
 #' @export
 
 calculate_blended_weight_kin <- function(main_estimate) {
+
   ## estimate variance for kin
   var_kin <- main_estimate %>%
     filter(type == "kin") %>%
-    group_by(type) %>%
     summarize(variance = var(death_rate)) %>%
     pull(variance)
 
   ## estimate variance for neighbor
   var_neighbor <- main_estimate %>%
     filter(type == "neighbor") %>%
-    group_by(type) %>%
     summarize(variance = var(death_rate)) %>%
     pull(variance)
 
@@ -34,6 +33,6 @@ calculate_blended_weight_kin <- function(main_estimate) {
     pull(covariance)
 
   ## calculate kin weight
-  kin_weight <- (var_neighbor^2 - (cov / 2)) / (var_kin^2 + var_neighbor^2 - cov)
+  kin_weight <- (var_neighbor - (cov)) / (var_kin + var_neighbor - 2*cov)
   return(kin_weight)
 }

@@ -25,7 +25,7 @@ compute_cdr_comprehensive <- function(death_df, survey_df,
                                       bootstrap = NA,
                                       monthly = FALSE,
                                       subpopulation = NULL,
-                                      blended_weight_kin = 0.5014031,
+                                      blended_weight_kin = 0.39375,
                                       weight_targets = weighting_targets,
                                       weight_type = "default",
                                       prob_survey_cutoff_flag = NA) {

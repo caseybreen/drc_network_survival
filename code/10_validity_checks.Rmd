@@ -277,6 +277,97 @@ household_sample_prop <- household_sample_roster %>%
   mutate(relation = "Probability, household")
 ```
 
+
+
+
+```{r}
+household_survey <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv"))
+
+neighbor_age_profile_probability <- household_survey %>% 
+  ungroup() %>% 
+  summarize(
+    under_5 = sum(coalesce(a_sum_neighbours_male_under5, 0) +
+                                     coalesce(a_sum_neighbours_female_under5, 0) +
+                                     coalesce(b_sum_neighbours_male_under5, 0) +
+                                     coalesce(b_sum_neighbours_female_under5, 0)),
+    
+    under_18 = sum(coalesce(a_sum_neighbours_male_under18, 0) +
+                                      coalesce(a_sum_neighbours_female_under18, 0) +
+                                      coalesce(b_sum_neighbours_male_under18, 0) +
+                                      coalesce(b_sum_neighbours_female_under18, 0)),
+    
+    over_18 = sum(coalesce(a_sum_neighbours_male_over18, 0) +
+                                     coalesce(a_sum_neighbours_female_over18, 0) +
+                                     coalesce(b_sum_neighbours_male_over18, 0) +
+                                     coalesce(b_sum_neighbours_female_over18, 0))) %>% 
+  mutate(id = 1) %>% 
+  pivot_longer(-id) %>% 
+  mutate(proportion = value / sum(value))  %>% 
+  mutate(relation = "Probability, neighbor") %>% 
+  mutate(age_group = case_when(
+    name == "under_5" ~ "Under 5",
+    name == "under_18" ~ "Under 18, over 5",
+    name == "over_18" ~ "Over 18"
+  ))
+```
+
+## calculate for king 
+
+```{r}
+kin_network_profile_age_probability <- household_survey %>% 
+  summarize(
+    under_5 = sum(
+      a_male_child_under5, a_female_child_under5,
+      b_male_child_under5, b_female_child_under5,
+      a_nephew_under5, a_niece_under5, b_nephew_under5, b_niece_under5,
+      a_male_grandchild_under5, a_female_grandchild_under5,
+      b_male_grandchild_under5, b_female_grandchild_under5,
+      a_sisters_under5, a_brothers_under5, b_sisters_under5, b_brothers_under5,
+      a_male_cousins_under5, a_female_cousins_under5, 
+      b_male_cousins_under5, b_female_cousins_under5,
+      a_aunts_under5, a_uncles_under5, b_aunts_under5, b_uncles_under5,
+      na.rm = TRUE),
+    under_18 = sum(
+      a_male_child_under18, a_female_child_under18,
+      b_male_child_under18, b_female_child_under18,
+      a_nephew_under18, a_niece_under18, b_nephew_under18, b_niece_under18,
+      a_male_grandchild_under18, a_female_grandchild_under18,
+      b_male_grandchild_under18, b_female_grandchild_under18,
+      a_sisters_under18, a_brothers_under18, b_sisters_under18, b_brothers_under18,
+      a_male_cousins_under18, a_female_cousins_under18, 
+      b_male_cousins_under18, b_female_cousins_under18,
+      a_aunts_under18, a_uncles_under18, b_aunts_under18, b_uncles_under18,
+      na.rm = TRUE),
+    over_18 = sum(
+      a_male_child_over18, a_female_child_over18,
+      b_male_child_over18, b_female_child_over18,
+      a_nephew_over18, a_niece_over18, b_nephew_over18, b_niece_over18,
+      a_male_grandchild_over18, a_female_grandchild_over18,
+      b_male_grandchild_over18, b_female_grandchild_over18,
+      a_sisters_over18, a_brothers_over18, b_sisters_over18, b_brothers_over18,
+      a_male_cousins_over18, a_female_cousins_over18, 
+      b_male_cousins_over18, b_female_cousins_over18,
+      a_aunts_over18, a_uncles_over18, b_aunts_over18, b_uncles_over18,
+      a_mother, a_father, b_mother, b_father,
+      a_grandmothers_over18, a_grandfathers_over18, 
+      b_grandmothers_over18, b_grandfathers_over18,
+      na.rm = TRUE)
+  ) %>% 
+  mutate(id = 1) %>% 
+  pivot_longer(-id, names_to = "category", values_to = "count") %>% 
+  mutate(proportion = count / sum(count)) %>% 
+  mutate(relation = "Probability, kin") %>% 
+  mutate(age_group = case_when(
+    category == "under_5" ~ "Under 5",
+    category == "under_18" ~ "Under 18, over 5",
+    category == "over_18" ~ "Over 18"
+  ))
+
+
+```
+
+
+
 ```{r}
 household_age_profile <- quota_sample_survey %>%
   summarise(
@@ -318,8 +409,12 @@ combined_summary_long_unweighted <- combined_summary_unweighted %>%
     relation == "kin" ~ "Quota, kin",
     TRUE ~ relation))
 
+## combined summary long unweighted 
+combined_summary_long_unweighted <- combined_summary_long_unweighted %>% 
+  bind_rows(neighbor_age_profile_probability, kin_network_profile_age_probability)
 
-quota_sample_prop_within_groups_unweighted <- ggplot(combined_summary_long_unweighted, aes(x = age_group, y = proportion, fill = relation, label = paste0(round(proportion * 100, 0), "%"))) +
+
+quota_sample_prop_within_groups_unweighted <- ggplot(combined_summary_long_unweighted, aes(x = age_group, y = proportion, fill = relation, label = paste0(round(proportion * 100, 0)))) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.9), alpha = 0.6, color = "black") +
   geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +  # Add text with dodge position
   labs(
@@ -327,8 +422,13 @@ quota_sample_prop_within_groups_unweighted <- ggplot(combined_summary_long_unwei
     x = "Age Group",
     y = "Proportion"
   ) +
-  theme_cowplot() +
-  scale_fill_manual(values = c("Quota, household" = "#1f77b4", "Quota, neighbor" = "#ff7f0e", "Quota, kin" = "darkgreen", "Probability, household" = "grey")) +  # Ensure that "kin" is quoted correctly
+  theme_cowplot() + 
+  scale_fill_manual(values = c("Quota, household" = "#1f77b4",
+                               "Quota, neighbor" = "#ff7f0e",
+                               "Quota, kin" = "darkgreen", 
+                               "Probability, kin" = "#CC79A7",
+                               "Probability, neighbor" = "#F0E442",
+                               "Probability, household" = "grey")) +  # Ensure that "kin" is quoted correctly
   theme(legend.position = "bottom", legend.title = element_blank()) + 
   scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, .6))  # Format the y-axis as a percentage
 ```
@@ -385,7 +485,12 @@ combined_summary_long <- combined_summary %>%
     TRUE ~ relation))
 
 
-quota_sample_prop_within_groups_weighted <- ggplot(combined_summary_long, aes(x = age_group, y = proportion, fill = relation, label = paste0(round(proportion * 100, 0), "%"))) +
+## combined summary long unweighted 
+combined_summary_long <- combined_summary_long %>% 
+  bind_rows(neighbor_age_profile_probability, kin_network_profile_age_probability)
+
+
+quota_sample_prop_within_groups_weighted <- ggplot(combined_summary_long, aes(x = age_group, y = proportion, fill = relation, label = paste0(round(proportion * 100, 0)))) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.9), alpha = 0.6, color = "black") +
   geom_text(position = position_dodge(width = 0.9), vjust = -0.5) +  # Add text with dodge position
   labs(
@@ -394,13 +499,18 @@ quota_sample_prop_within_groups_weighted <- ggplot(combined_summary_long, aes(x 
     y = "Proportion"
   ) +
   theme_cowplot() +
-  scale_fill_manual(values = c("Quota, household" = "#1f77b4", "Quota, neighbor" = "#ff7f0e", "Quota, kin" = "darkgreen", "Probability, household" = "grey")) +  # Ensure that "kin" is quoted correctly
+  scale_fill_manual(values = c("Quota, household" = "#1f77b4",
+                               "Quota, neighbor" = "#ff7f0e",
+                               "Quota, kin" = "darkgreen", 
+                               "Probability, kin" = "#CC79A7",
+                               "Probability, neighbor" = "#F0E442",
+                               "Probability, household" = "grey")) +
   theme(legend.position = "bottom", legend.title = element_blank()) + 
   scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, .6))  # Format the y-axis as a percentage
 
 
 # Extract the legend from the unweighted plot
-legend <- get_legend(quota_sample_prop_within_groups_unweighted + theme(legend.position = "bottom"))
+legend <- ggpubr::get_legend(quota_sample_prop_within_groups_unweighted + theme(legend.position = "bottom"))
 
 # Remove the legend from both plots
 quota_sample_prop_within_groups_unweighted <- quota_sample_prop_within_groups_unweighted + theme(legend.position = "none")
@@ -415,57 +525,7 @@ quota_sample_prop_within_groups_combined <- plot_grid(
 )
 
 # Save the combined plot
-ggsave(quota_sample_prop_within_groups_combined, filename = here("figures/age_profile_quota.png"), width = 12, height = 5, dpi = 300, bg = "white")
-```
-
-
-
-
-
-```{r}
-household_sample_respondent <- read_csv(here("data", "data_clean", "hh_sample_respondent.csv"))
-
-household_sample_respondent %>% 
-  ungroup() %>% 
-  summarize(
-    num_total_neighbour_under5 = sum(coalesce(a_sum_neighbours_male_under5, 0) +
-                                     coalesce(a_sum_neighbours_female_under5, 0) +
-                                     coalesce(b_sum_neighbours_male_under5, 0) +
-                                     coalesce(b_sum_neighbours_female_under5, 0)),
-    
-    num_total_neighbour_under18 = sum(coalesce(a_sum_neighbours_male_under18, 0) +
-                                      coalesce(a_sum_neighbours_female_under18, 0) +
-                                      coalesce(b_sum_neighbours_male_under18, 0) +
-                                      coalesce(b_sum_neighbours_female_under18, 0)),
-    
-    num_total_neighbour_over18 = sum(coalesce(a_sum_neighbours_male_over18, 0) +
-                                     coalesce(a_sum_neighbours_female_over18, 0) +
-                                     coalesce(b_sum_neighbours_male_over18, 0) +
-                                     coalesce(b_sum_neighbours_female_over18, 0))) %>% 
-  mutate(id = 1) %>% 
-  pivot_longer(-id) %>% 
-  mutate(prop = value / sum(value))
-```
-
-
-```{r}
-pyramid_df <- household_sample_roster %>% 
-  count(sex_roster, age_years) 
-
-# Create a population pyramid
-pyramid_df %>%
-  mutate(n = ifelse(sex_roster == "m", -n, n)) %>%  # Negative counts for males
-  ggplot(aes(x = age_years, y = n, fill = sex_roster)) +
-  geom_bar(stat = "identity", width = 0.9) +
-  coord_flip() +
-  scale_y_continuous(labels = abs) +  # Make the y-axis labels positive
-  labs(title = "Population Pyramid",
-       x = "Age",
-       y = "Population Count") +
-  scale_fill_manual(values = c("m" = "skyblue", "f" = "pink"),  # Adjust colors to match the data
-                    labels = c("Male", "Female")) +  # Adjust the legend labels
-  theme_minimal() +
-  theme(legend.position = "bottom")
+ggsave(quota_sample_prop_within_groups_combined, filename = here("figures/age_profile_quota.png"), width = 14, height = 6, dpi = 300, bg = "white")
 ```
 
 
